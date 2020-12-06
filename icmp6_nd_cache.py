@@ -65,10 +65,10 @@ class ICMPv6NdCache:
             self.creation_time = time.time()
             self.hit_count = 0
 
-    def __init__(self, packet_handler):
+    def __init__(self, interface):
         """ Class constructor """
 
-        self.packet_handler = packet_handler
+        self.interface = interface
 
         self.nd_cache = {}
 
@@ -123,16 +123,16 @@ class ICMPv6NdCache:
 
         # Pick apropriate source address
         ip6_src = IPv6Address("::")
-        for ip6_address in self.packet_handler.ip6_address:
+        for ip6_address in self.interface.ip6_address:
             if icmp6_ns_target_address in ip6_address.network:
                 ip6_src = ip6_address.ip
 
         # Send out ND Solicitation message
-        self.packet_handler.phtx_icmp6(
+        self.interface.phtx_icmp6(
             ip6_src=ip6_src,
             ip6_dst=icmp6_ns_target_address.solicited_node_multicast,
             ip6_hop=255,
             icmp6_type=ps_icmp6.ICMP6_NEIGHBOR_SOLICITATION,
             icmp6_ns_target_address=icmp6_ns_target_address,
-            icmp6_nd_options=[ps_icmp6.Icmp6NdOptSLLA(opt_slla=self.packet_handler.mac_unicast)],
+            icmp6_nd_options=[ps_icmp6.Icmp6NdOptSLLA(opt_slla=self.interface.mac_unicast)],
         )

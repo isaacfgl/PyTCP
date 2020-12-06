@@ -44,8 +44,10 @@
 from ipv4_address import IPv4Interface
 from ipv6_address import IPv6Interface
 
-# TAP interface name stack should bind itself to
-interface = b"tap7"
+# TAP interfaces and MAC address name stack should bind itself to
+interface = [
+    (b"tap7", "02:00:00:77:77:77"),
+]
 
 # Support for IPv6 and IPv4, at least one should be anabled
 ip6_support = True
@@ -66,9 +68,6 @@ post_parse_sanity_check = True
 # as they are mostly useless anyway
 ip4_option_packet_drop = True
 
-# Unicast MAC addresses assigned to stack, currently there is not any kind of duplicate MAC detection performed
-mac_address = "02:00:00:77:77:77"
-
 # IPv6 address auto configuration is implemented using EUI64 addressing and ICMPv6 Router Advertisement messages
 ip6_lla_autoconfig = True
 ip6_gua_autoconfig = True
@@ -84,7 +83,7 @@ ip4_default_ttl = 64
 # Basic routing is implmented and each subnet can have its own gateway
 # Link local addresses should have default gateway set to 'None'
 ip6_address_candidate = [
-    ("FE80::7/64", None),
+    ("FE80::7/64", None, "tap7"),
     # ("FE80::77/64", None),
     # ("FE80::7777/64", None),
     # ("FE80::7777/64", None),  # test duplicate address
@@ -103,7 +102,7 @@ ip4_address_dhcp_config = True
 # Each entry is a tuple interface address/prefix length and second is defaut gateway for this subnet
 # Basic routing is implmented and each subnet can have its own gateway
 ip4_address_candidate = [
-    ("192.168.9.7/24", "192.168.9.1"),
+    ("192.168.9.7/24", "192.168.9.1", "tap7"),
     # ("192.168.9.77/24", "192.168.9.1"),
     # ("224.0.0.1/24", "192.168.9.1"), # test invalid address type
     # ("DUPA", "192.168.9.1"),  # test invalid address format

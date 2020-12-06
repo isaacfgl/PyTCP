@@ -65,10 +65,10 @@ class ArpCache:
             self.creation_time = time.time()
             self.hit_count = 0
 
-    def __init__(self, packet_handler):
+    def __init__(self, interface):
         """ Class constructor """
 
-        self.packet_handler = packet_handler
+        self.interface = interface
 
         self.arp_cache = {}
 
@@ -123,12 +123,12 @@ class ArpCache:
     def __send_arp_request(self, arp_tpa):
         """ Enqueue ARP request packet with TX ring """
 
-        self.packet_handler.phtx_arp(
-            ether_src=self.packet_handler.mac_unicast,
+        self.interface.phtx_arp(
+            ether_src=self.interface.mac_unicast,
             ether_dst="ff:ff:ff:ff:ff:ff",
             arp_oper=ps_arp.ARP_OP_REQUEST,
-            arp_sha=self.packet_handler.mac_unicast,
-            arp_spa=self.packet_handler.ip4_unicast[0] if self.packet_handler.ip4_unicast else IPv4Address("0.0.0.0"),
+            arp_sha=self.interface.mac_unicast,
+            arp_spa=self.interface.ip4_unicast[0] if self.interface.ip4_unicast else IPv4Address("0.0.0.0"),
             arp_tha="00:00:00:00:00:00",
             arp_tpa=arp_tpa,
         )

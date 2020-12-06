@@ -52,10 +52,10 @@ import ps_ether
 class RxRing:
     """ Support for receiving packets from the network """
 
-    def __init__(self, tap):
+    def __init__(self, interface):
         """ Initialize access to tap interface and the inbound queue """
 
-        self.tap = tap
+        self.interface = interface
         self.rx_ring = []
         self.logger = loguru.logger.bind(object_name="rx_ring.")
 
@@ -82,7 +82,8 @@ class RxRing:
         while True:
 
             # Wait till there is any packet comming and pick it up
-            ether_packet_rx = ps_ether.EtherPacket(os.read(self.tap, 2048))
+            ether_packet_rx = ps_ether.EtherPacket(os.read(self.interface.tap, 2048))
+            ether_packet_rx.interface = self.interface
             self.logger.opt(ansi=True).debug(f"<green>[RX]</green> {ether_packet_rx.tracker} - {len(ether_packet_rx)} bytes")
             self.__enqueue(ether_packet_rx)
 

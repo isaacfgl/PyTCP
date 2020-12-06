@@ -41,9 +41,6 @@
 #
 
 
-import fcntl
-import os
-import struct
 import sys
 import time
 
@@ -61,11 +58,6 @@ from service_udp_discard import ServiceUdpDiscard
 from service_udp_echo import ServiceUdpEcho
 from stack_cli_server import StackCliServer
 from timer import Timer
-
-TUNSETIFF = 0x400454CA
-IFF_TAP = 0x0002
-IFF_NO_PI = 0x1000
-
 
 #########################################################
 #                                                       #
@@ -97,13 +89,10 @@ def main():
         + "|</level> <level> <normal><cyan>{extra[object_name]}{function}:</cyan></normal> {message}</level>",
     )
 
-    tap = os.open("/dev/net/tun", os.O_RDWR)
-    fcntl.ioctl(tap, TUNSETIFF, struct.pack("16sH", config.interface, IFF_TAP | IFF_NO_PI))
-
     # Initialize stack components
     # StackCliServer()
     Timer()
-    PacketHandler(tap)
+    PacketHandler(config.interface)
 
     # Set proper local IP address pattern for services depending on whch version of IP is enabled
     if config.ip6_support and config.ip4_support:
