@@ -131,29 +131,17 @@ ECN_TABLE = {0b00: "Non-ECT", 0b10: "ECT(0)", 0b01: "ECT(1)", 0b11: "CE"}
 class Ip6Packet:
     """ IPv6 packet support class """
 
-    protocol = "IPv6"
-
-    def __init__(self, raw_packet, hptr):
+    def __init__(self, frame, hptr):
         """ Class constructor """
 
-        self.sanity_check_failed = self.__pre_parse_sanity_check(raw_packet, hptr)
-        if self.sanity_check_failed:
+        self._frame = frame
+        self._hptr = hptr
+
+        self.packet_parse_failed = self._packet_integrity_check() or self._packet_sanity_check()
+        if self.packet_parse_failed:
             return
 
-        self.ver = raw_packet[hptr + 0] >> 4
-        self.dscp = ((raw_packet[hptr + 0] & 0b00001111) << 2) | ((raw_packet[hptr + 1] & 0b11000000) >> 6)
-        self.ecn = (raw_packet[hptr + 1] & 0b00110000) >> 4
-        self.flow = ((raw_packet[hptr + 1] & 0b00001111) << 16) | (raw_packet[hptr + 2] << 8) | raw_packet[hptr + 3]
-        self.dlen = struct.unpack("!H", raw_packet[hptr + 4 : hptr + 6])[0]
-        self.next = raw_packet[hptr + 6]
-        self.hop = raw_packet[hptr + 7]
-        self.src = IPv6Address(raw_packet[hptr + 8 : hptr + 24])
-        self.dst = IPv6Address(raw_packet[hptr + 24 : hptr + 40])
-
-        self.hptr = hptr
-        self.dptr = hptr + IP6_HEADER_LEN
-
-        self.sanity_check_failed = self.__post_parse_sanity_check()
+        self.dptr = self._hptr + IP6_HEADER_LEN
 
     def __str__(self):
         """ Short packet log string """
@@ -163,43 +151,138 @@ class Ip6Packet:
             + f", dlen {self.dlen}, hop {self.hop}"
         )
 
+    def __len__(self):
+        """ Packet length """
+
+        return len(self._frame) - self._hptr
+
+    @property
+    def ver(self):
+        """ Read 'Version' field """
+
+        if not hasattr(self, "_ver"):
+            self._ver = self._frame[self._hptr + 0] >> 4
+        return self._ver
+
+    @property
+    def dscp(self):
+        """ Read 'DSCP' field """
+
+        if not hasattr(self, "_dscp"):
+            self._dscp = ((self._frame[self._hptr + 0] & 0b00001111) << 2) | ((self._frame[self._hptr + 1] & 0b11000000) >> 6)
+        return self._dscp
+
+    @property
+    def ecn(self):
+        """ Read 'ECN' field """
+
+        if not hasattr(self, "_ecn"):
+            self._ecn = (self._frame[self._hptr + 1] & 0b00110000) >> 4
+        return self._ecn
+
+    @property
+    def flow(self):
+        """ Read 'Flow' field """
+
+        if not hasattr(self, "_flow"):
+            self._flow = ((self._frame[self._hptr + 1] & 0b00001111) << 16) | (self._frame[self._hptr + 2] << 8) | self._frame[self._hptr + 3]
+        return self._flow
+
+    @property
+    def dlen(self):
+        """ Read 'Data length' field """
+
+        if not hasattr(self, "_dlen"):
+            self._dlen = struct.unpack("!H", self._frame[self._hptr + 4 : self._hptr + 6])[0]
+        return self._dlen
+
+    @property
+    def next(self):
+        """ Read 'Next' field """
+
+        return self._frame[self._hptr + 6]
+
+    @property
+    def hop(self):
+        """ Read 'Hop' field """
+
+        return self._frame[self._hptr + 7]
+
+    @property
+    def src(self):
+        """ Read 'Source address' field """
+
+        if not hasattr(self, "_src"):
+            self._src = IPv6Address(self._frame[self._hptr + 8 : self._hptr + 24])
+        return self._src
+
+    @property
+    def dst(self):
+        """ Read 'Destination address' field """
+
+        if not hasattr(self, "_dst"):
+            self._dst = IPv6Address(self._frame[self._hptr + 24 : self._hptr + 40])
+        return self._dst
+
+    @property
+    def data(self):
+        """ Read the data packet carries """
+
+        if not hasattr(self, "_data"):
+            self._data = self._frame[self._hptr + IP6_HEADER_LEN :]
+        return self._data
+
+    @property
+    def plen(self):
+        """ Calculate packet length """
+
+        if not hasattr(self, "_plen"):
+            self._plen = len(self)
+        return self._plen
+
+    @property
+    def packet(self):
+        """ Read the whole packet """
+
+        if not hasattr(self, "_packet"):
+            self._packet = self._frame[self._hptr :]
+        return self._packet
+
     @property
     def pseudo_header(self):
-        """ Returns IPv6 pseudo header that is used by TCP to compute its checksum """
+        """ Returns IPv6 pseudo header that is used by TCP, UDP and ICMPv6 to compute their checksums """
 
-        # *** in the UDP/TCP length field need to account for IPv6 optional headers, current implementation assumes TCP/UDP is put right after IPv6 header ***
-        return struct.pack("! 16s 16s L BBBB", self.src.packed, self.dst.packed, self.dlen, 0, 0, 0, self.next)
+        if not hasattr(self, "_packet"):
+            self._pseudo_header = struct.pack("! 16s 16s L BBBB", self.src.packed, self.dst.packed, self.dlen, 0, 0, 0, self.next)
+        return self._pseudo_header
 
-    def __pre_parse_sanity_check(self, raw_packet, hptr):
-        """ Preliminary sanity check to be run on raw IPv6 packet prior to packet parsing """
+    def _packet_integrity_check(self):
+        """ Packet integrity check to be run on raw packet prior to parsing to make sure parsing is safe """
 
-        if not config.pre_parse_sanity_check:
+        if not config.packet_integrity_check:
             return False
 
-        if len(raw_packet) - hptr < 40:
-            return "IPv6 sanity check fail - wrong packet length (I)"
+        if len(self) < IP6_HEADER_LEN:
+            return "IPv6 integrity - wrong packet length (I)"
 
-        if struct.unpack("!H", raw_packet[hptr + 4 : hptr + 6])[0] != len(raw_packet) - hptr - 40:
-            return "IPv6 sanity check fail - wrong packet length (II)"
+        if struct.unpack("!H", self._frame[self._hptr + 4 : self._hptr + 6])[0] != len(self) - IP6_HEADER_LEN:
+            return "IPv6 integrity - wrong packet length (II)"
 
         return False
 
-    def __post_parse_sanity_check(self):
-        """ Sanity check to be run on parsed IPv6 packet """
+    def _packet_sanity_check(self):
+        """ Packet sanity check to be run on parsed packet to make sure packet's fields contain sane values """
 
         if not config.post_parse_sanity_check:
             return False
 
-        # ip6_ver not set to 6
         if not self.ver == 6:
-            return "IP sanity check fail - value of ip6_ver is not 6"
+            return "IPv6 sanity - 'ver' must be 6"
 
-        # ip6_hop set to 0
         if self.hop == 0:
-            return "IP sanity check fail - value of ip6_hop is 0"
+            return "IPv6 sanity - 'hop' must not be 0"
 
-        # ip6_src address is multicast
         if self.src.is_multicast:
-            return "IP sanity check fail - ip6_src address is multicast"
+            return "IPv6 sanity - 'src' must not be multicast"
 
         return False

@@ -653,7 +653,7 @@ class Icmp6Packet:
             if not self.ns_target_address.is_unicast:
                 return "ICMPv6 sanity check fail - icmp6_ns_target_address MUST be unicast address (RFC 4861)"
             # icmp6_rs_opt_slla MUST NOT be included if ip6_src is unspecified address
-            if ip6_src.is_unspecified and not self.nd_opt_slla is None:
+            if ip6_src.is_unspecified and self.nd_opt_slla is not None:
                 return "ICMPv6 sanity check fail - icmp6_rs_opt_slla MUST NOT be included if ip6_src is unspecified address"
 
         elif self.type == ICMP6_NEIGHBOR_ADVERTISEMENT:

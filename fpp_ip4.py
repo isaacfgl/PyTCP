@@ -228,9 +228,7 @@ class Ip4Packet:
     def ttl(self):
         """ Read 'TTL' field """
 
-        if not hasattr(self, "_ttl"):
-            self._ttl = self._frame[self._hptr + 8]
-        return self._ttl
+        return self._frame[self._hptr + 8]
 
     @property
     def proto(self):
@@ -291,6 +289,22 @@ class Ip4Packet:
         if not hasattr(self, "_data"):
             self._data = self._frame[self._hptr + self.hlen :]
         return self._data
+
+    @property
+    def olen(self):
+        """ Calculate options length """
+
+        if not hasattr(self, "_plen"):
+            self._plen = self.hlen - IP4_HEADER_LEN
+        return self._plen
+
+    @property
+    def dlen(self):
+        """ Calculate data length """
+
+        if not hasattr(self, "_dlen"):
+            self._dlen = len(self) - self.hlen
+        return self._dlen
 
     @property
     def packet(self):

@@ -197,6 +197,14 @@ class Icmp4Packet:
         return self._un_data
 
     @property
+    def plen(self):
+        """ Calculate packet length """
+
+        if not hasattr(self, "_plen"):
+            self._plen = len(self)
+        return self._plen
+
+    @property
     def packet(self):
         """ Read the whole packet """
 

@@ -117,8 +117,8 @@ class FastPacketParser:
         # IPv6 packet parsing
         if self.ether.type == fpp_ether.ETHER_TYPE_IP6:
             self.ip = self.ip6 = fpp_ip6.Ip6Packet(self._frame, self.ether.dptr)
-            if self.ip6.sanity_check_failed:
-                self.logger.critical(f"{self.tracker} - {self.ip6.sanity_check_failed}")
+            if self.ip6.packet_parse_failed:
+                self.logger.critical(f"{self.tracker} - {self.ip6.packet_parse_failed}")
                 return
             self.logger.debug(f"{self.tracker} - {self.ip6}")
 

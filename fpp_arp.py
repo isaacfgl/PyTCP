@@ -165,6 +165,14 @@ class ArpPacket:
         return self._tpa
 
     @property
+    def plen(self):
+        """ Calculate packet length """
+
+        if not hasattr(self, "_plen"):
+            self._plen = len(self)
+        return self._plen
+
+    @property
     def packet(self):
         """ Read the whole packet """
 
