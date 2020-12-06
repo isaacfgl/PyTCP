@@ -51,16 +51,18 @@ interface = b"tap7"
 ip6_support = True
 ip4_support = True
 
-# Pre-parse packet sanity check, if enabled it protects the potocol parsers from being exposed to malformed or malicious packets
+# Packet integrity sanity check, if enabled it protects the potocol parsers from being exposed to malformed or malicious packets
 # that could cause them to crash during packet parsing. It progessively check apropriate lenght fields and ensure they are set within sane boundries.
 # It also checks packet's actuall header/options/data lenghts against above values and default minimum/maximum lenghts for given protocol.
 # Also packet options (if any) are checked in similar fashion to ensure they will not exploit or crash parser.
-pre_parse_sanity_check = True
+packet_integrity_check = True
+pre_parse_sanity_check = True  # legacy name
 
-# Post-parse packet sanity check, if enabled it validates  packets fields to detect invalid values or invalid combinations of values
+# Packet sanity check, if enabled it validates packet's fields to detect invalid values or invalid combinations of values
 # For example in TCP/UDP it drops packets with port set to 0, in TCP it drop packet with SYN and FIN flags set simultaneously,
 # for ICMPv6 it provides very detailed check of messages integrity
-post_parse_sanity_check = True
+packet_sanity_check = True
+post_parse_sanity_check = True  # legacy name
 
 # Drop IPv4 packets containing options - this seems to be widely adopted security feature. Stack parses but doesn't support IPv4 options
 # as they are mostly useless anyway

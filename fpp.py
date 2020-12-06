@@ -67,8 +67,8 @@ class FastPacketParser:
 
         # Ethernet packet parsing
         self.ether = fpp_ether.EtherPacket(raw_packet, 0)
-        if self.ether.sanity_check_failed:
-            self.logger.critical(f"{self.tracker} - {self.ether.sanity_check_failed}")
+        if self.ether.packet_check_failed:
+            self.logger.critical(f"{self.tracker} - {self.ether.packet_check_failed}")
             return
         self.logger.debug(f"{self.tracker} - {self.ether}")
 

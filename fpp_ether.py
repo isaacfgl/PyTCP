@@ -37,7 +37,7 @@
 
 
 #
-# fpp_ethernet.py - packet parser for Ethernet protocol
+# fpp_ether.py - Fast Packet Parser class for Ethernet protocol
 #
 
 
@@ -75,42 +75,74 @@ class EtherPacket:
     def __init__(self, raw_packet, hptr):
         """ Class constructor """
 
-        self.sanity_check_failed = self.__pre_parse_sanity_check(raw_packet, hptr)
-        if self.sanity_check_failed:
+        self.raw_packet = raw_packet
+        self.hptr = hptr
+
+        self.packet_check_failed = self.__packet_integrity_check()
+        if self.packet_check_failed:
             return
 
-        self.dst = ":".join([f"{_:0>2x}" for _ in raw_packet[hptr + 0 : hptr + 6]])
-        self.src = ":".join([f"{_:0>2x}" for _ in raw_packet[hptr + 6 : hptr + 12]])
-        self.type = struct.unpack("!H", raw_packet[hptr + 12 : hptr + 14])[0]
-
-        self.hptr = hptr
-        self.dptr = hptr + 14
-
-        self.sanity_check_failed = self.__post_parse_sanity_check()
+        self.packet_check_failed = self.__packet_sanity_check()
+        if self.packet_check_failed:
+            return
+        
+        self.dptr = self.hptr + ETHER_HEADER_LEN
 
     def __str__(self):
         """ Short packet log string """
 
         return f"ETHER {self.src} > {self.dst}, 0x{self.type:0>4x} ({ETHER_TYPE_TABLE.get(self.type, '???')})"
 
-    def __pre_parse_sanity_check(self, raw_packet, hptr):
-        """ Preliminary sanity check to be run on raw Ethernet packet prior to packet parsing """
+    @property
+    def dst(self):
+        """ Read the 'dst' field """
 
-        if not config.pre_parse_sanity_check:
+        if not hasattr(self, "_dst"):
+            self._dst = ":".join([f"{_:0>2x}" for _ in self.raw_packet[self.hptr + 0 : self.hptr + 6]])
+        return self._dst
+
+    @property
+    def src(self):
+        """ Read the 'src' field """
+
+        if not hasattr(self, "_src"):
+            self._src = ":".join([f"{_:0>2x}" for _ in self.raw_packet[self.hptr + 6 : self.hptr + 12]])
+        return self._src
+
+    @property
+    def type(self):
+        """ Read the 'type' field """
+
+        if not hasattr(self, "_type"):
+            self._type =  struct.unpack("!H", self.raw_packet[self.hptr + 12 : self.hptr + 14])[0]
+        return self._type
+
+    @property
+    def data(self):
+        """ Read the data packet carries """
+
+        if not hasattr(self, "_data"):
+            self._data = self.raw_packet[self.hptr + ETHER_HEADER_LEN : ]
+        return self._data
+
+    def __packet_integrity_check(self):
+        """ Packet integrity check to be run on raw packet prior to parsing to make sure parsing is safe """
+
+        if not config.packet_integrity_check:
             return False
 
-        if len(raw_packet) - hptr < 14:
-            return "Ethernet sanity check fail - wrong packet length (I)"
+        if len(self.raw_packet) - self.hptr < 14:
+            return "ETHER integrity fail - wrong packet length (I)"
 
         return False
 
-    def __post_parse_sanity_check(self):
-        """ Sanity check to be run on parsed Ethernet packet """
+    def __packet_sanity_check(self):
+        """ Packet sanity check to be run on parsed packet to make sure packet's fields contain sane values """
 
-        if not config.post_parse_sanity_check:
+        if not config.packet_sanity_check:
             return False
 
         if self.type < ETHER_TYPE_MIN:
-            return "Ethernet sanity check fail - value of ether_type < 0x0600"
+            return "ETHER sanity fail - value of ether_type < 0x0600"
 
         return False

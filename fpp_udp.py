@@ -37,7 +37,7 @@
 
 
 #
-# fpp_udp.py - packet parser for UDP protocol
+# fpp_udp.py - Fast Packet Parser class for UDP protocol
 #
 
 
@@ -84,36 +84,36 @@ class UdpPacket:
 
         return f"UDP {self.sport} > {self.dport}, len {self.plen}"
 
-    def __pre_parse_sanity_check(self, raw_packet, hptr, pseudo_header):
-        """ Preliminary sanity check to be run on raw UDP packet prior to packet parsing """
+    def __packet_integrity_check(self, pseudo_header):
+        """ Packet integrity check to be run on raw packet prior to parsing to make sure parsing is safe """
 
-        if not config.pre_parse_sanity_check:
+        if not config.packet_integrity_check:
             return False
 
         if inet_cksum(pseudo_header + raw_packet[hptr:]):
-            return "UDP sanity check fail - wrong packet checksum"
+            return "UDP sanity - wrong packet checksum"
 
         if len(raw_packet) < 8:
-            return "UDP sanity check fail - wrong packet length (I)"
+            return "UDP sanity - wrong packet length (I)"
 
         plen = struct.unpack("!H", raw_packet[hptr + 4 : hptr + 6])[0]
         if not 8 <= plen == len(raw_packet) - hptr:
-            return "UDP sanity check fail - wrong packet length (II)"
+            return "UDP sanity - wrong packet length (II)"
 
         return False
 
     def __post_parse_sanity_check(self):
-        """ Sanity check to be run on parsed UDP packet """
+        """ Packet sanity check to be run on parsed packet to make sure packet's fields contain sane values """
 
-        if not config.post_parse_sanity_check:
+        if not config.packet_sanity_check:
             return False
 
         # udp_sport set to zero
         if self.sport == 0:
-            return "TCP sanity check fail - value of udp_sport is 0"
+            return "TCP sanity fail - value of udp_sport is 0"
 
         # udp_dport set to zero
         if self.dport == 0:
-            return "TCP sanity check fail - value of udp_dport is 0"
+            return "TCP sanity fail - value of udp_dport is 0"
 
         return False
