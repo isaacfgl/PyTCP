@@ -37,29 +37,80 @@
 
 
 #
-# phrx_icmp4.py - packet handler for inbound ICMPv4 packets
+# pp_ethernet.py - packet parser for Ethernet protocol
 #
 
 
-import ps_icmp4
+import struct
+
+import config
+
+# Ethernet packet header
+
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+# |                                                               >
+# +    Destination MAC Address    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+# >                               |                               >
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+      Source MAC Address       +
+# >                                                               |
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+# |           EtherType           |
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 
-def phrx_icmp4(self, packet_rx):
-    """ Handle inbound ICMPv4 packets """
+ETHER_HEADER_LEN = 14
 
-    self.logger.opt(ansi=True).info(f"<green>{packet_rx.tracker}</green> - {packet_rx.icmp4}")
+ETHER_TYPE_MIN = 0x0600
+ETHER_TYPE_ARP = 0x0806
+ETHER_TYPE_IP4 = 0x0800
+ETHER_TYPE_IP6 = 0x86DD
 
-    # Respond to ICMPv4 Echo Request packet
-    if packet_rx.icmp4.type == ps_icmp4.ICMP4_ECHOREQUEST:
-        self.logger.debug(f"Received ICMPv4 Echo Request packet from {packet_rx.ip4.src}, sending reply...")
 
-        self.phtx_icmp4(
-            ip4_src=packet_rx.ip4.dst,
-            ip4_dst=packet_rx.ip4.src,
-            icmp4_type=ps_icmp4.ICMP4_ECHOREPLY,
-            icmp4_ec_id=packet_rx.icmp4.ec_id,
-            icmp4_ec_seq=packet_rx.icmp4.ec_seq,
-            icmp4_ec_raw_data=packet_rx.icmp4.ec_data,
-            echo_tracker=packet_rx.tracker,
-        )
-        return
+ETHER_TYPE_TABLE = {ETHER_TYPE_ARP: "ARP", ETHER_TYPE_IP4: "IPv4", ETHER_TYPE_IP6: "IPv6"}
+
+
+class EtherPacket:
+    """ Ethernet packet support class """
+
+    def __init__(self, raw_packet, hptr):
+        """ Class constructor """
+
+        self.sanity_check_failed = self.__pre_parse_sanity_check(raw_packet, hptr)
+        if self.sanity_check_failed:
+            return
+
+        self.dst = ":".join([f"{_:0>2x}" for _ in raw_packet[hptr + 0 : hptr + 6]])
+        self.src = ":".join([f"{_:0>2x}" for _ in raw_packet[hptr + 6 : hptr + 12]])
+        self.type = struct.unpack("!H", raw_packet[hptr + 12 : hptr + 14])[0]
+
+        self.hptr = hptr
+        self.dptr = hptr + 14
+
+        self.sanity_check_failed = self.__post_parse_sanity_check()
+
+    def __str__(self):
+        """ Short packet log string """
+
+        return f"ETHER {self.src} > {self.dst}, 0x{self.type:0>4x} ({ETHER_TYPE_TABLE.get(self.type, '???')})"
+
+    def __pre_parse_sanity_check(self, raw_packet, hptr):
+        """ Preliminary sanity check to be run on raw Ethernet packet prior to packet parsing """
+
+        if not config.pre_parse_sanity_check:
+            return False
+
+        if len(raw_packet) - hptr < 14:
+            return "Ethernet sanity check fail - wrong packet length (I)"
+
+        return False
+
+    def __post_parse_sanity_check(self):
+        """ Sanity check to be run on parsed Ethernet packet """
+
+        if not config.post_parse_sanity_check:
+            return False
+
+        if self.type < ETHER_TYPE_MIN:
+            return "Ethernet sanity check fail - value of ether_type < 0x0600"
+
+        return False

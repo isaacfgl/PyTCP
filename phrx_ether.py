@@ -48,28 +48,24 @@ import ps_ip4
 import ps_ip6
 
 
-def phrx_ether(self, ether_packet_rx):
+def phrx_ether(self, packet_rx):
     """ Handle inbound Ethernet packets """
 
-    # Validate Ethernet packet sanity
-    if ether_packet_rx.sanity_check_failed:
-        return
-
-    self.logger.debug(f"{ether_packet_rx.tracker} - {ether_packet_rx}")
+    self.logger.debug(f"{packet_rx.tracker} - {packet_rx.ether}")
 
     # Check if received packet matches any of stack MAC addresses
-    if ether_packet_rx.ether_dst not in {self.mac_unicast, *self.mac_multicast, self.mac_broadcast}:
-        self.logger.opt(ansi=True).debug(f"{ether_packet_rx.tracker} - Ethernet packet not destined for this stack, droping")
+    if packet_rx.ether.dst not in {self.mac_unicast, *self.mac_multicast, self.mac_broadcast}:
+        self.logger.opt(ansi=True).debug(f"{packet_rx.tracker} - Ethernet packet not destined for this stack, droping...")
         return
 
-    if ether_packet_rx.ether_type == ps_ether.ETHER_TYPE_ARP and config.ip4_support:
-        self.phrx_arp(ether_packet_rx, ps_arp.ArpPacket(ether_packet_rx))
+    if packet_rx.ether.type == ps_ether.ETHER_TYPE_ARP and config.ip4_support:
+        self.phrx_arp(packet_rx)
         return
 
-    if ether_packet_rx.ether_type == ps_ether.ETHER_TYPE_IP4 and config.ip4_support:
-        self.phrx_ip4(ps_ip4.Ip4Packet(ether_packet_rx))
+    if packet_rx.ether.type == ps_ether.ETHER_TYPE_IP4 and config.ip4_support:
+        self.phrx_ip4(packet_rx)
         return
 
-    if ether_packet_rx.ether_type == ps_ether.ETHER_TYPE_IP6 and config.ip6_support:
-        self.phrx_ip6(ps_ip6.Ip6Packet(ether_packet_rx))
+    if packet_rx.ether.type == ps_ether.ETHER_TYPE_IP6 and config.ip6_support:
+        self.phrx_ip6(packet_rx)
         return

@@ -56,6 +56,7 @@ from arp_cache import ArpCache
 from icmp6_nd_cache import ICMPv6NdCache
 from ipv4_address import IPv4Address, IPv4Interface
 from ipv6_address import IPv6Address, IPv6Interface, IPv6Network
+from packet_parser import PacketParser
 from rx_ring import RxRing
 from tx_ring import TxRing
 from udp_metadata import UdpMetadata
@@ -156,7 +157,7 @@ class PacketHandler:
         """ Thread picks up incoming packets from RX ring and processes them """
 
         while True:
-            self.phrx_ether(self.rx_ring.dequeue())
+            self.phrx_ether(PacketParser(self.rx_ring.dequeue()))
 
     @property
     def ip6_unicast(self):

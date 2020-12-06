@@ -37,29 +37,83 @@
 
 
 #
-# phrx_icmp4.py - packet handler for inbound ICMPv4 packets
+# pp_udp.py - packet parser for UDP protocol
 #
 
 
-import ps_icmp4
+import struct
+
+import config
+from ip_helper import inet_cksum
+
+# UDP packet header (RFC 768)
+
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+# |          Source port          |        Destination port       |
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+# |         Packet length         |            Checksum           |
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 
-def phrx_icmp4(self, packet_rx):
-    """ Handle inbound ICMPv4 packets """
+UDP_HEADER_LEN = 8
 
-    self.logger.opt(ansi=True).info(f"<green>{packet_rx.tracker}</green> - {packet_rx.icmp4}")
 
-    # Respond to ICMPv4 Echo Request packet
-    if packet_rx.icmp4.type == ps_icmp4.ICMP4_ECHOREQUEST:
-        self.logger.debug(f"Received ICMPv4 Echo Request packet from {packet_rx.ip4.src}, sending reply...")
+class UdpPacket:
+    """ UDP packet support class """
 
-        self.phtx_icmp4(
-            ip4_src=packet_rx.ip4.dst,
-            ip4_dst=packet_rx.ip4.src,
-            icmp4_type=ps_icmp4.ICMP4_ECHOREPLY,
-            icmp4_ec_id=packet_rx.icmp4.ec_id,
-            icmp4_ec_seq=packet_rx.icmp4.ec_seq,
-            icmp4_ec_raw_data=packet_rx.icmp4.ec_data,
-            echo_tracker=packet_rx.tracker,
-        )
-        return
+    def __init__(self, raw_packet, hptr, pseudo_header):
+        """ Class constructor """
+
+        self.sanity_check_failed = self.__pre_parse_sanity_check(raw_packet, hptr, pseudo_header)
+        if self.sanity_check_failed:
+            return
+
+        self.sport = struct.unpack("!H", raw_packet[hptr + 0 : hptr + 2])[0]
+        self.dport = struct.unpack("!H", raw_packet[hptr + 2 : hptr + 4])[0]
+        self.plen = struct.unpack("!H", raw_packet[hptr + 4 : hptr + 6])[0]
+        self.cksum = struct.unpack("!H", raw_packet[hptr + 6 : hptr + 8])[0]
+        self.data = raw_packet[hptr + UDP_HEADER_LEN :]
+
+        self.hptr = hptr
+        self.dptr = hptr + UDP_HEADER_LEN
+
+        self.sanity_check_failed = self.__post_parse_sanity_check()
+
+    def __str__(self):
+        """ Short packet log string """
+
+        return f"UDP {self.sport} > {self.dport}, len {self.plen}"
+
+    def __pre_parse_sanity_check(self, raw_packet, hptr, pseudo_header):
+        """ Preliminary sanity check to be run on raw UDP packet prior to packet parsing """
+
+        if not config.pre_parse_sanity_check:
+            return False
+
+        if inet_cksum(pseudo_header + raw_packet[hptr:]):
+            return "UDP sanity check fail - wrong packet checksum"
+
+        if len(raw_packet) < 8:
+            return "UDP sanity check fail - wrong packet length (I)"
+
+        plen = struct.unpack("!H", raw_packet[hptr + 4 : hptr + 6])[0]
+        if not 8 <= plen == len(raw_packet) - hptr:
+            return "UDP sanity check fail - wrong packet length (II)"
+
+        return False
+
+    def __post_parse_sanity_check(self):
+        """ Sanity check to be run on parsed UDP packet """
+
+        if not config.post_parse_sanity_check:
+            return False
+
+        # udp_sport set to zero
+        if self.sport == 0:
+            return "TCP sanity check fail - value of udp_sport is 0"
+
+        # udp_dport set to zero
+        if self.dport == 0:
+            return "TCP sanity check fail - value of udp_dport is 0"
+
+        return False

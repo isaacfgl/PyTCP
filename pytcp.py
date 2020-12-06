@@ -101,7 +101,7 @@ def main():
     fcntl.ioctl(tap, TUNSETIFF, struct.pack("16sH", config.interface, IFF_TAP | IFF_NO_PI))
 
     # Initialize stack components
-    # StackCliServer()
+    StackCliServer()
     Timer()
     PacketHandler(tap)
 

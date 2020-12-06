@@ -49,14 +49,14 @@ from ip_helper import inet_cksum
 
 ip4_fragments = {}
 
-
-def handle_ip4_fragmentation(ip4_packet_rx):
+'''
+def handle_ip4_fragmentation(packet_rx):
     """ Check if packet is fragmented """
 
     # Check if IP packet is a first fragment
-    if ip4_packet_rx.ip4_frag_offset == 0 and ip4_packet_rx.ip4_flag_mf:
-        ip4_fragments[ip4_packet_rx.ip4_packet_id] = {}
-        ip4_fragments[ip4_packet_rx.ip4_packet_id][ip4_packet_rx.ip4_frag_offset] = ip4_packet_rx.raw_data
+    if packet_rx.ip4_frag_offset == 0 and packet_rx.ip4.flag_mf:
+        ip4_fragments[packet_rx.ip4.packet_id] = {}
+        ip4_fragments[packet_rx.ip4.packet_id][packet_rx.ip4.frag_offset] = packet_rx.ip_data
         return None
 
     # Check if IP packet is one of middle fragments
@@ -86,35 +86,32 @@ def handle_ip4_fragmentation(ip4_packet_rx):
             ip4_packet_rx.raw_data = raw_data
 
     return ip4_packet_rx
+'''
 
 
-def phrx_ip4(self, ip4_packet_rx):
+def phrx_ip4(self, packet_rx):
     """ Handle inbound IP packets """
 
-    # Validate IPv4 packet sanity
-    if ip4_packet_rx.sanity_check_failed:
-        return
-
-    self.logger.debug(f"{ip4_packet_rx.tracker} - {ip4_packet_rx}")
+    self.logger.debug(f"{packet_rx.tracker} - {packet_rx.ip4}")
 
     # Check if received packet has been sent to us directly or by unicast/broadcast, allow any destination if no unicast address is configured (for DHCP client)
-    if self.ip4_unicast and ip4_packet_rx.ip4_dst not in {*self.ip4_unicast, *self.ip4_multicast, *self.ip4_broadcast}:
-        self.logger.debug(f"{ip4_packet_rx.tracker} - IP packet not destined for this stack, droping")
+    if self.ip4_unicast and packet_rx.ip4.dst not in {*self.ip4_unicast, *self.ip4_multicast, *self.ip4_broadcast}:
+        self.logger.debug(f"{packet_rx.tracker} - IP packet not destined for this stack, droping")
         return
 
     # Check if packet is a fragment, and if so process it accrdingly
-    ip4_packet_rx = handle_ip4_fragmentation(ip4_packet_rx)
-    if not ip4_packet_rx:
+    # ip4_packet_rx = handle_ip4_fragmentation(ip4_packet_rx)
+    # if not ip4_packet_rx:
+    #    return
+
+    if packet_rx.ip4.proto == ps_ip4.IP4_PROTO_ICMP4:
+        self.phrx_icmp4(packet_rx)
         return
 
-    if ip4_packet_rx.ip4_proto == ps_ip4.IP4_PROTO_ICMP4:
-        self.phrx_icmp4(ip4_packet_rx, ps_icmp4.Icmp4Packet(ip4_packet_rx))
+    if packet_rx.ip4.proto == ps_ip4.IP4_PROTO_UDP:
+        self.phrx_udp(packet_rx)
         return
 
-    if ip4_packet_rx.ip4_proto == ps_ip4.IP4_PROTO_UDP:
-        self.phrx_udp(ip4_packet_rx, ps_udp.UdpPacket(ip4_packet_rx))
-        return
-
-    if ip4_packet_rx.ip4_proto == ps_ip4.IP4_PROTO_TCP:
-        self.phrx_tcp(ip4_packet_rx, ps_tcp.TcpPacket(ip4_packet_rx))
+    if packet_rx.ip4.proto == ps_ip4.IP4_PROTO_TCP:
+        self.phrx_tcp(packet_rx)
         return
