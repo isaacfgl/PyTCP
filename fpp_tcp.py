@@ -37,7 +37,7 @@
 
 
 #
-# fpp_tcp.py - packet parser for TCP protocol
+# fpp_tcp.py - Fast Packet Parser support class for TCP protocol
 #
 
 
@@ -69,64 +69,17 @@ TCP_HEADER_LEN = 20
 class TcpPacket:
     """ TCP packet support class """
 
-    def __init__(self, raw_packet, hptr, pseudo_header):
+    def __init__(self, frame, hptr, pseudo_header):
         """ Class constructor """
 
-        self.sanity_check_failed = self.__pre_parse_sanity_check(raw_packet, hptr, pseudo_header)
-        if self.sanity_check_failed:
+        self._frame = frame
+        self._hptr = hptr
+
+        self.packet_parse_failed = self._packet_integrity_check(pseudo_header) or self._packet_sanity_check()
+        if self.packet_parse_failed:
             return
 
-        self.sport = struct.unpack("!H", raw_packet[hptr + 0 : hptr + 2])[0]
-        self.dport = struct.unpack("!H", raw_packet[hptr + 2 : hptr + 4])[0]
-        self.seq = struct.unpack("!L", raw_packet[hptr + 4 : hptr + 8])[0]
-        self.ack = struct.unpack("!L", raw_packet[hptr + 8 : hptr + 12])[0]
-        self.hlen = (raw_packet[hptr + 12] & 0b11110000) >> 2
-        self.reserved = raw_packet[hptr + 12] & 0b00001110
-        self.flag_ns = bool(raw_packet[hptr + 12] & 0b00000001)
-        self.flag_crw = bool(raw_packet[hptr + 13] & 0b10000000)
-        self.flag_ece = bool(raw_packet[hptr + 13] & 0b01000000)
-        self.flag_urg = bool(raw_packet[hptr + 13] & 0b00100000)
-        self.flag_ack = bool(raw_packet[hptr + 13] & 0b00010000)
-        self.flag_psh = bool(raw_packet[hptr + 13] & 0b00001000)
-        self.flag_rst = bool(raw_packet[hptr + 13] & 0b00000100)
-        self.flag_syn = bool(raw_packet[hptr + 13] & 0b00000010)
-        self.flag_fin = bool(raw_packet[hptr + 13] & 0b00000001)
-        self.win = struct.unpack("!H", raw_packet[hptr + 14 : hptr + 16])[0]
-        self.cksum = struct.unpack("!H", raw_packet[hptr + 16 : hptr + 18])[0]
-        self.urp = struct.unpack("!H", raw_packet[hptr + 18 : hptr + 20])[0]
-
-        self.options = []
-
-        opt_cls = {
-            TCP_OPT_MSS: TcpOptMss,
-            TCP_OPT_WSCALE: TcpOptWscale,
-            TCP_OPT_SACKPERM: TcpOptSackPerm,
-            TCP_OPT_TIMESTAMP: TcpOptTimestamp,
-        }
-
-        optr = hptr + TCP_HEADER_LEN
-
-        while optr < hptr + self.hlen:
-
-            if raw_packet[optr] == TCP_OPT_EOL:
-                self.options.append(TcpOptEol())
-                break
-
-            if raw_packet[optr] == TCP_OPT_NOP:
-                self.options.append(TcpOptNop())
-                optr += TCP_OPT_NOP_LEN
-                continue
-
-            self.options.append(opt_cls.get(raw_packet[optr], TcpOptUnk)(raw_packet, optr))
-            optr += raw_packet[optr + 1]
-
-        self.data = raw_packet[hptr + self.hlen :]
-
-        self.hptr = hptr
-        self.optr = hptr + TCP_HEADER_LEN
-        self.dptr = hptr + self.hlen
-
-        self.sanity_check_failed = self.__post_parse_sanity_check()
+        self.dptr = self._hptr + self.hlen
 
     def __str__(self):
         """ Short packet log string """
@@ -135,13 +88,218 @@ class TcpPacket:
             f"TCP {self.sport} > {self.dport}, {'N' if self.flag_ns else ''}{'C' if self.flag_crw else ''}"
             + f"{'E' if self.flag_ece else ''}{'U' if self.flag_urg else ''}{'A' if self.flag_ack else ''}"
             + f"{'P' if self.flag_psh else ''}{'R' if self.flag_rst else ''}{'S' if self.flag_syn else ''}"
-            + f"{'F' if self.flag_fin else ''}, seq {self.seq}, ack {self.ack}, win {self.win}, dlen {len(self.data)}"
+            + f"{'F' if self.flag_fin else ''}, seq {self.seq}, ack {self.ack}, win {self.win}, dlen {self.dlen}"
         )
 
         for option in self.options:
             log += ", " + str(option)
 
         return log
+
+    def __len__(self):
+        """ Packet length """
+
+        return len(self._frame) - self._hptr
+
+    @property
+    def sport(self):
+        """ Read 'Source port' field """
+
+        if not hasattr(self, "_sport"):
+            self._sport = struct.unpack("!H", self._frame[self._hptr + 0 : self._hptr + 2])[0]
+        return self._sport
+
+    @property
+    def dport(self):
+        """ Read 'Destianation port' field """
+
+        if not hasattr(self, "_dport"):
+            self._dport = struct.unpack("!H", self._frame[self._hptr + 2 : self._hptr + 4])[0]
+        return self._dport
+
+    @property
+    def seq(self):
+        """ Read 'Sequence number' field """
+
+        if not hasattr(self, "_seq"):
+            self._seq = struct.unpack("!L", self._frame[self._hptr + 4 : self._hptr + 8])[0]
+        return self._seq
+
+    @property
+    def ack(self):
+        """ Read 'Acknowledge number' field """
+
+        if not hasattr(self, "_ack"):
+            self._ack = struct.unpack("!L", self._frame[self._hptr + 8 : self._hptr + 12])[0]
+        return self._ack
+
+    @property
+    def hlen(self):
+        """ Read 'Header length' field """
+
+        if not hasattr(self, "_hlen"):
+            self._hlen = (self._frame[self._hptr + 12] & 0b11110000) >> 2
+        return self._hlen
+
+    @property
+    def flag_ns(self):
+        """ Read 'NS flag' field """
+
+        if not hasattr(self, "_flag_ns"):
+            self._flag_ns = bool(self._frame[self._hptr + 12] & 0b00000001)
+        return self._flag_ns
+
+    @property
+    def flag_crw(self):
+        """ Read 'CRW flag' field """
+
+        if not hasattr(self, "_flag_crw"):
+            self._flag_crw = bool(self._frame[self._hptr + 13] & 0b10000000)
+        return self._flag_crw
+
+    @property
+    def flag_ece(self):
+        """ Read 'ECE flag' field """
+
+        if not hasattr(self, "_flag_ece"):
+            self._flag_ece = bool(self._frame[self._hptr + 13] & 0b01000000)
+        return self._flag_ece
+
+    @property
+    def flag_urg(self):
+        """ Read 'URG flag' field """
+
+        if not hasattr(self, "_flag_urg"):
+            self._flag_urg = bool(self._frame[self._hptr + 13] & 0b00100000)
+        return self._flag_urg
+
+    @property
+    def flag_ack(self):
+        """ Read 'ACK flag' field """
+
+        if not hasattr(self, "_flag_ack"):
+            self._flag_ack = bool(self._frame[self._hptr + 13] & 0b00010000)
+        return self._flag_ack
+
+    @property
+    def flag_psh(self):
+        """ Read 'PSH flag' field """
+
+        if not hasattr(self, "_flag_psh"):
+            self._flag_psh = bool(self._frame[self._hptr + 13] & 0b00001000)
+        return self._flag_psh
+
+    @property
+    def flag_rst(self):
+        """ Read 'RST flag' field """
+
+        if not hasattr(self, "_flag_rst"):
+            self._flag_rst = bool(self._frame[self._hptr + 13] & 0b00000100)
+        return self._flag_rst
+
+    @property
+    def flag_syn(self):
+        """ Read 'SYN flag' field """
+
+        if not hasattr(self, "_flag_syn"):
+            self._flag_syn = bool(self._frame[self._hptr + 13] & 0b00000010)
+        return self._flag_syn
+
+    @property
+    def flag_fin(self):
+        """ Read 'FIN flag' field """
+
+        if not hasattr(self, "_flag_fin"):
+            self._flag_fin = bool(self._frame[self._hptr + 13] & 0b00000001)
+        return self._flag_fin
+
+    @property
+    def win(self):
+        """ Read 'Window' field """
+
+        if not hasattr(self, "_win"):
+            self._win = struct.unpack("!H", self._frame[self._hptr + 14 : self._hptr + 16])[0]
+        return self._win
+
+    @property
+    def cksum(self):
+        """ Read 'Checksum' field """
+
+        if not hasattr(self, "_cksum"):
+            self._cksum = struct.unpack("!H", self._frame[self._hptr + 16 : self._hptr + 18])[0]
+        return self._cksum
+
+    @property
+    def urg(self):
+        """ Read 'Urgent pointer' field """
+
+        if not hasattr(self, "_urg"):
+            self._urg = struct.unpack("!H", self._frame[self._hptr + 18 : self._hptr + 20])[0]
+        return self._urg
+
+    @property
+    def data(self):
+        """ Read the data packet carries """
+
+        if not hasattr(self, "_data"):
+            self._data = self._frame[self._hptr + self.hlen :]
+        return self._data
+
+    @property
+    def olen(self):
+        """ Calculate options length """
+
+        if not hasattr(self, "_plen"):
+            self._plen = self.hlen - TCP_HEADER_LEN
+        return self._plen
+
+    @property
+    def dlen(self):
+        """ Calculate data length """
+
+        if not hasattr(self, "_dlen"):
+            self._dlen = len(self) - self.hlen
+        return self._dlen
+
+    @property
+    def plen(self):
+        """ Calculate packet length """
+
+        if not hasattr(self, "_plen"):
+            self._plen = len(self)
+        return self._plen
+
+    @property
+    def packet(self):
+        """ Read the whole packet """
+
+        if not hasattr(self, "_packet"):
+            self._packet = self._frame[self._hptr :]
+        return self._packet
+
+    @property
+    def options(self):
+        """ Read list of options """
+
+        if not hasattr(self, "_options"):
+            self._options = []
+            optr = self._hptr + TCP_HEADER_LEN
+            while optr < self._hptr + self.hlen:
+                if self._frame[optr] == TCP_OPT_EOL:
+                    self._options.append(TcpOptEol())
+                    break
+                if self._frame[optr] == TCP_OPT_NOP:
+                    self._options.append(TcpOptNop())
+                    optr += TCP_OPT_NOP_LEN
+                    continue
+                self._options.append(
+                    {TCP_OPT_MSS: TcpOptMss, TCP_OPT_WSCALE: TcpOptWscale, TCP_OPT_SACKPERM: TcpOptSackPerm, TCP_OPT_TIMESTAMP: TcpOptTimestamp}.get(
+                        self._frame[optr], TcpOptUnk
+                    )(self._frame, optr)
+                )
+                optr += self._frame[optr + 1]
+
+        return self._options
 
     @property
     def mss(self):
@@ -179,78 +337,70 @@ class TcpPacket:
                 return option.tsval, option.tsecr
         return None
 
-    def __pre_parse_sanity_check(self, raw_packet, hptr, pseudo_header):
-        """ Preliminary sanity check to be run on raw TCP packet prior to packet parsing """
+    def _packet_integrity_check(self, pseudo_header):
+        """ Packet integrity check to be run on raw frame prior to parsing to make sure parsing is safe """
 
-        if not config.pre_parse_sanity_check:
+        if not config.packet_integrity_check:
             return False
 
-        if inet_cksum(pseudo_header + raw_packet[hptr:]):
-            return "TCP sanity check fail - wrong packet checksum"
+        if inet_cksum(pseudo_header + self._frame[self._hptr :]):
+            return "TCP integrity - wrong packet checksum"
 
-        if len(raw_packet) - hptr < 20:
-            return "TCP sanity check fail - wrong packet length (I)"
+        if len(self._frame) - self._hptr < TCP_HEADER_LEN:
+            return "TCP integrity - wrong packet length (I)"
 
-        hlen = (raw_packet[hptr + 12] & 0b11110000) >> 2
-        if not 20 <= hlen <= len(raw_packet) - hptr:
-            return "TCP sanity check fail - wrong packet length (II)"
+        hlen = (self._frame[self._hptr + 12] & 0b11110000) >> 2
+        if not TCP_HEADER_LEN <= hlen <= len(self):
+            return "TCP integrity - wrong packet length (II)"
 
-        optr = hptr + 20
-        while optr < hptr + hlen:
-            if raw_packet[optr] == TCP_OPT_EOL:
+        optr = self._hptr + TCP_HEADER_LEN
+        while optr < self._hptr + hlen:
+            if self._frame[optr] == TCP_OPT_EOL:
                 break
-            if raw_packet[optr] == TCP_OPT_NOP:
+            if self._frame[optr] == TCP_OPT_NOP:
                 optr += 1
-                if optr > hptr + hlen:
-                    return "TCP sanity check fail - wrong option length (I)"
+                if optr > self._hptr + hlen:
+                    return "TCP integrity - wrong option length (I)"
                 continue
-            if optr + 1 > hptr + hlen:
-                return "TCP sanity check fail - wrong option length (II)"
-            if raw_packet[optr + 1] == 0:
-                return "TCP sanity check fail - wrong option length (III)"
-            optr += raw_packet[optr + 1]
-            if optr > hptr + hlen:
-                return "TCP sanity check fail - wrong option length (IV)"
+            if optr + 1 > self._hptr + hlen:
+                return "TCP integrity - wrong option length (II)"
+            if self._frame[optr + 1] == 0:
+                return "TCP integrity - wrong option length (III)"
+            optr += self._frame[optr + 1]
+            if optr > self._hptr + hlen:
+                return "TCP integrity - wrong option length (IV)"
 
         return False
 
-    def __post_parse_sanity_check(self):
-        """ Sanity check to be run on parsed TCP packet """
+    def _packet_sanity_check(self):
+        """ Packet sanity check to be run on parsed packet to make sure frame's fields contain sane values """
 
-        if not config.post_parse_sanity_check:
+        if not config.packet_sanity_check:
             return False
 
-        # tcp_sport set to zero
         if self.sport == 0:
-            return "TCP sanity check fail - value of tcp_sport is 0"
+            return "TCP sanity - 'sport' must be greater than 0"
 
-        # tcp_dport set to zero
         if self.dport == 0:
-            return "TCP sanity check fail - value of tcp_dport is 0"
+            return "TCP sanity - 'dport' must be greater than  0"
 
-        # SYN and FIN flag cannot be set simultaneously
         if self.flag_syn and self.flag_fin:
-            return "TCP sanity check fail - SYN and FIN flags are set simultaneously"
+            return "TCP sanity - 'flag_syn' and 'flag_fin' must not be set simultaneously"
 
-        # SYN and RST flag cannot be set simultaneously
         if self.flag_syn and self.flag_rst:
-            return "TCP sanity check fail - SYN and RST flags are set simultaneously"
+            return "TCP sanity - 'flag_syn' and 'flag_rst' must not set simultaneously"
 
-        # FIN and RST flag cannot be set simultaneously
         if self.flag_fin and self.flag_rst:
-            return "TCP sanity check fail - FIN and RST flags are set simultaneously"
+            return "TCP sanity - 'flag_fin' and 'flag_rst' must not be set simultaneously"
 
-        # FIN flag must be set together with ACK flag
         if self.flag_fin and not self.flag_ack:
-            return "TCP sanity check fail - FIN set but ACK flag is not set"
+            return "TCP sanity - 'flag_ack' must be set when 'flag_fin' is set"
 
-        # ACK number set to non zero value but the ACK flag is not set
         if self.ack and not self.flag_ack:
-            return "TCP sanity check fail - ACK number present but ACK flag is not set"
+            return "TCP sanity - 'flag_ack' must be set when 'ack' is not 0"
 
-        # URG pointer set to non zero value but the URG flag is not set
-        if self.urp and not self.flag_urg:
-            return "TCP sanity check fail - URG pointer present but URG flag is not set"
+        if self.urg and not self.flag_urg:
+            return "TCP sanity - 'flag_urg' must be set when 'urg' is not 0"
 
         return False
 
@@ -301,10 +451,10 @@ TCP_OPT_MSS_LEN = 4
 class TcpOptMss:
     """ TCP option - Maximum Segment Size (2) """
 
-    def __init__(self, raw_packet, optr):
-        self.kind = raw_packet[optr + 0]
-        self.len = raw_packet[optr + 1]
-        self.mss = struct.unpack("!H", raw_packet[optr + 2 : optr + 4])[0]
+    def __init__(self, frame, optr):
+        self.kind = frame[optr + 0]
+        self.len = frame[optr + 1]
+        self.mss = struct.unpack("!H", frame[optr + 2 : optr + 4])[0]
 
     def __str__(self):
         return f"mss {self.mss}"
@@ -319,10 +469,10 @@ TCP_OPT_WSCALE_LEN = 3
 class TcpOptWscale:
     """ TCP option - Window Scale (3) """
 
-    def __init__(self, raw_packet, optr):
-        self.kind = raw_packet[optr + 0]
-        self.len = raw_packet[optr + 1]
-        self.wscale = raw_packet[optr + 2]
+    def __init__(self, frame, optr):
+        self.kind = frame[optr + 0]
+        self.len = frame[optr + 1]
+        self.wscale = frame[optr + 2]
 
     def __str__(self):
         return f"wscale {self.wscale}"
@@ -337,9 +487,9 @@ TCP_OPT_SACKPERM_LEN = 2
 class TcpOptSackPerm:
     """ TCP option - Sack Permit (4) """
 
-    def __init__(self, raw_packet, optr):
-        self.kind = raw_packet[optr + 0]
-        self.len = raw_packet[optr + 1]
+    def __init__(self, frame, optr):
+        self.kind = frame[optr + 0]
+        self.len = frame[optr + 1]
 
     def __str__(self):
         return "sack_perm"
@@ -354,11 +504,11 @@ TCP_OPT_TIMESTAMP_LEN = 10
 class TcpOptTimestamp:
     """ TCP option - Timestamp (8) """
 
-    def __init__(self, raw_packet, optr):
-        self.kind = raw_packet[optr + 0]
-        self.len = raw_packet[optr + 1]
-        self.tsval = struct.unpack("!L", raw_packet[optr + 2 : optr + 6])[0]
-        self.tsecr = struct.unpack("!L", raw_packet[optr + 6 : optr + 10])[0]
+    def __init__(self, frame, optr):
+        self.kind = frame[optr + 0]
+        self.len = frame[optr + 1]
+        self.tsval = struct.unpack("!L", frame[optr + 2 : optr + 6])[0]
+        self.tsecr = struct.unpack("!L", frame[optr + 6 : optr + 10])[0]
 
     def __str__(self):
         return f"ts {self.tsval}/{self.tsecr}"
@@ -370,10 +520,10 @@ class TcpOptTimestamp:
 class TcpOptUnk:
     """ TCP option not supported by this stack """
 
-    def __init__(self, raw_packet, optr):
-        self.kind = raw_packet[optr + 0]
-        self.len = raw_packet[optr + 1]
-        self.data = raw_packet[optr + 2 : optr + self.len]
+    def __init__(self, frame, optr):
+        self.kind = frame[optr + 0]
+        self.len = frame[optr + 1]
+        self.data = frame[optr + 2 : optr + self.len]
 
     def __str__(self):
         return f"unk-{self.kind}-{self.len}"

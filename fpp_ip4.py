@@ -266,18 +266,17 @@ class Ip4Packet:
 
         if not hasattr(self, "_options"):
             self._options = []
-            switch = {}
             optr = self._hptr + IP4_HEADER_LEN
 
             while optr < self._hptr + self.hlen:
                 if self._frame[optr] == IP4_OPT_EOL:
-                    self.options.append(Ip4OptEol())
+                    self._options.append(Ip4OptEol())
                     break
                 if self._frame[optr] == IP4_OPT_NOP:
-                    self.options.append(Ip4OptNop())
+                    self._options.append(Ip4OptNop())
                     optr += IP4_OPT_NOP_LEN
                     continue
-                self.options.append(switch.get(self._frame[optr], Ip4OptUnk)(self._frame, optr))
+                self._options.append({}.get(self._frame[optr], Ip4OptUnk)(self._frame, optr))
                 optr += self._frame[optr + 1]
 
         return self._options
