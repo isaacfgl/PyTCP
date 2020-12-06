@@ -37,7 +37,7 @@
 
 
 #
-# fpp_udp.py - Fast Packet Parser class for UDP protocol
+# fpp_udp.py - Fast Packet Parser support class for UDP protocol
 #
 
 

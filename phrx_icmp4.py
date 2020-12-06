@@ -50,13 +50,13 @@ def phrx_icmp4(self, packet_rx):
     self.logger.opt(ansi=True).info(f"<green>{packet_rx.tracker}</green> - {packet_rx.icmp4}")
 
     # Respond to ICMPv4 Echo Request packet
-    if packet_rx.icmp4.type == ps_icmp4.ICMP4_ECHOREQUEST:
+    if packet_rx.icmp4.type == ps_icmp4.ICMP4_ECHO_REQUEST:
         self.logger.debug(f"Received ICMPv4 Echo Request packet from {packet_rx.ip4.src}, sending reply...")
 
         self.phtx_icmp4(
             ip4_src=packet_rx.ip4.dst,
             ip4_dst=packet_rx.ip4.src,
-            icmp4_type=ps_icmp4.ICMP4_ECHOREPLY,
+            icmp4_type=ps_icmp4.ICMP4_ECHO_REPLY,
             icmp4_ec_id=packet_rx.icmp4.ec_id,
             icmp4_ec_seq=packet_rx.icmp4.ec_seq,
             icmp4_ec_raw_data=packet_rx.icmp4.ec_data,

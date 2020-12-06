@@ -37,7 +37,7 @@
 
 
 #
-# fpp_icmp4.py - packet parser for ICMPv4 protocol
+# fpp_icmp4.py - Fast Packet Parser support class for ICMPv4 protocol
 #
 
 
@@ -93,8 +93,9 @@ from ip_helper import inet_cksum
 # ~                             Data                              ~
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
+ICMP4_HEADER_LEN = 4
 
-ICMP4_ECHOREPLY = 0
+ICMP4_ECHO_REPLY = 0
 ICMP4_UNREACHABLE = 3
 ICMP4_UNREACHABLE__NET = 0
 ICMP4_UNREACHABLE__HOST = 1
@@ -102,120 +103,143 @@ ICMP4_UNREACHABLE__PROTOCOL = 2
 ICMP4_UNREACHABLE__PORT = 3
 ICMP4_UNREACHABLE__FAGMENTATION = 4
 ICMP4_UNREACHABLE__SOURCE_ROUTE_FAILED = 5
-ICMP4_ECHOREQUEST = 8
+ICMP4_ECHO_REQUEST = 8
 
 
 class Icmp4Packet:
     """ ICMPv4 packet support class """
 
-    def __init__(self, raw_packet, hptr):
+    def __init__(self, frame, hptr):
         """ Class constructor """
 
-        self.sanity_check_failed = self.__pre_parse_sanity_check(raw_packet, hptr)
-        if self.sanity_check_failed:
+        self._frame = frame
+        self._hptr = hptr
+
+        self.packet_parse_failed = self._packet_integrity_check() or self._packet_sanity_check()
+        if self.packet_parse_failed:
             return
-
-        self.type = raw_packet[hptr + 0]
-        self.code = raw_packet[hptr + 1]
-        self.cksum = struct.unpack("!H", raw_packet[hptr + 2 : hptr + 4])[0]
-
-        if self.type == ICMP4_ECHOREPLY:
-            self.ec_id = struct.unpack("!H", raw_packet[hptr + 4 : hptr + 6])[0]
-            self.ec_seq = struct.unpack("!H", raw_packet[hptr + 6 : hptr + 8])[0]
-            self.ec_data = raw_packet[hptr + 8 :]
-
-        elif self.type == ICMP4_UNREACHABLE:
-            self.un_reserved = struct.unpack("!L", raw_packet[hptr + 4 : hptr + 6])[0]
-            self.un_data = raw_packet[hptr + 8 :]
-
-        elif self.type == ICMP4_ECHOREQUEST:
-            self.ec_id = struct.unpack("!H", raw_packet[hptr + 4 : hptr + 6])[0]
-            self.ec_seq = struct.unpack("!H", raw_packet[hptr + 6 : hptr + 8])[0]
-            self.ec_data = raw_packet[hptr + 8 :]
-
-        self.sanity_check_failed = self.__post_parse_sanity_check()
-
-        self.hptr = hptr
 
     def __str__(self):
         """ Short packet log string """
 
         log = f"ICMPv4 type {self.type}, code {self.code}"
 
-        if self.type == ICMP4_ECHOREPLY:
+        if self.type == ICMP4_ECHO_REPLY:
             log += f", id {self.ec_id}, seq {self.ec_seq}"
 
         elif self.type == ICMP4_UNREACHABLE and self.code == ICMP4_UNREACHABLE__PORT:
             pass
 
-        elif self.type == ICMP4_ECHOREQUEST:
+        elif self.type == ICMP4_ECHO_REQUEST:
             log += f", id {self.ec_id}, seq {self.ec_seq}"
 
         return log
 
+    def __len__(self):
+        """ Packet length """
+
+        return len(self._frame) - self._hptr
+
     @property
-    def raw_packet(self):
-        """ Get packet in raw format """
+    def type(self):
+        """ Read 'Type' field """
 
-        if self.type == ICMP4_ECHOREPLY:
-            raw_packet = struct.pack("! BBH HH", self.type, self.code, self.cksum, self.ec_id, self.ec_seq) + self.ec_data
+        return self._frame[self._hptr + 0]
 
-        elif self.type == ICMP4_UNREACHABLE and self.code == ICMP4_UNREACHABLE__PORT:
-            raw_packet = struct.pack("! BBH L", self.type, self.code, self.cksum, self.un_reserved) + self.un_data
+    @property
+    def code(self):
+        """ Read 'Code' field """
 
-        elif self.type == ICMP4_ECHOREQUEST:
-            raw_packet = struct.pack("! BBH HH", self.type, self.code, self.cksum, self.ec_id, self.ec_seq) + self.ec_data
+        return self._frame[self._hptr + 1]
 
-        else:
-            raw_packet = struct.pack("! BBH", self.type, self.code, self.cksum) + self.unknown_message
+    @property
+    def cksum(self):
+        """ Read 'Checksum' field """
 
-        return raw_packet
+        if not hasattr(self, "_cksum"):
+            self.cksum = struct.unpack("!H", self._frame[self._hptr + 2 : self._hptr + 4])[0]
+        return self._cksum
 
-    def __pre_parse_sanity_check(self, raw_packet, hptr):
-        """ Preliminary sanity check to be run on raw ICMPv4 packet prior to packet parsing """
+    @property
+    def ec_id(self):
+        """ Read Echo 'Id' field """
 
-        if not config.pre_parse_sanity_check:
+        if not hasattr(self, "_ec_id"):
+            assert self.type in {ICMP4_ECHO_REQUEST, ICMP4_ECHO_REPLY}
+            self._ec_id = struct.unpack("!H", self._frame[self._hptr + 4 : self._hptr + 6])[0]
+        return self._ec_id
+
+    @property
+    def ec_seq(self):
+        """ Read Echo 'Seq' field """
+
+        if not hasattr(self, "_ec_seq"):
+            assert self.type in {ICMP4_ECHO_REQUEST, ICMP4_ECHO_REPLY}
+            self._ec_seq = struct.unpack("!H", self._frame[self._hptr + 6 : self._hptr + 8])[0]
+        return self._ec_seq
+
+    @property
+    def ec_data(self):
+        """ Read data carried by Echo message """
+
+        if not hasattr(self, "_ec_data"):
+            assert self.type in {ICMP4_ECHO_REQUEST, ICMP4_ECHO_REPLY}
+            self._ec_data = self._frame[self._hptr + 8 :]
+        return self._ec_data
+
+    @property
+    def un_data(self):
+        """ Read data carried by Uneachable message """
+
+        if not hasattr(self, "_un_data"):
+            assert self.type == ICMP4_UNREACHABLE
+            self._un_data = self._frame[self._hptr + 8 :]
+        return self._un_data
+
+    @property
+    def packet(self):
+        """ Read the whole packet """
+
+        if not hasattr(self, "_packet"):
+            self._packet = self._frame[self._hptr :]
+        return self._packet
+
+    def _packet_integrity_check(self):
+        """ Packet integrity check to be run on raw frame prior to parsing to make sure parsing is safe """
+
+        if not config.packet_integrity_check:
             return False
 
-        if inet_cksum(raw_packet[hptr:]):
-            return "ICMPv4 sanity check fail - wrong packet checksum"
+        if inet_cksum(self._frame[self._hptr :]):
+            return "ICMPv4 integrity - wrong packet checksum"
 
-        if len(raw_packet) - hptr < 4:
-            return "ICMPv4 sanity check fail - wrong packet length (I)"
+        if len(self._frame) - self._hptr < ICMP4_HEADER_LEN:
+            return "ICMPv4 integrity - wrong packet length (I)"
 
-        if raw_packet[hptr + 0] == ICMP4_ECHOREPLY:
-            if len(raw_packet) - hptr < 8:
-                return "ICMPv6 sanity check fail - wrong packet length (II)"
+        if self._frame[self._hptr + 0] in {ICMP4_ECHO_REQUEST, ICMP4_ECHO_REPLY}:
+            if len(self._frame) - self._hptr < 8:
+                return "ICMPv6 integrity - wrong packet length (II)"
 
-        elif raw_packet[hptr + 0] == ICMP4_UNREACHABLE:
-            if len(raw_packet) - hptr < 12:
-                return "ICMPv6 sanity check fail - wrong packet length (II)"
-
-        elif raw_packet[hptr + 0] == ICMP4_ECHOREQUEST:
-            if len(raw_packet) - hptr < 8:
-                return "ICMPv6 sanity check fail - wrong packet length (II)"
+        elif self._frame[self._hptr + 0] == ICMP4_UNREACHABLE:
+            if len(self._frame) - self._hptr < 12:
+                return "ICMPv6 integrity - wrong packet length (II)"
 
         return False
 
-    def __post_parse_sanity_check(self):
-        """ Sanity check to be run on parsed ICMPv6 packet """
+    def _packet_sanity_check(self):
+        """ Packet sanity check to be run on parsed packet to make sure frame's fields contain sane values """
 
-        if not config.post_parse_sanity_check:
+        if not config.packet_sanity_check:
             return False
 
-        if self.type == ICMP4_ECHOREPLY:
+        if self.type in {ICMP4_ECHO_REQUEST, ICMP4_ECHO_REPLY}:
             # imcp4_code SHOULD be set to 0 (RFC 792)
             if not self.code == 0:
-                return "ICMPv4 sanity check warning - imcp4_code SHOULD be set to 0 (RFC 792)"
+                return "ICMPv4 sanity - 'code' should be set to 0 (RFC 792)"
 
         if self.type == ICMP4_UNREACHABLE:
             # imcp4_code MUST be set to [0-15] (RFC 792)
             if self.code not in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}:
-                return "ICMPv4 sanity check fail - imcp4_code MUST be set to [0-15] (RFC 792)"
-
-        elif self.type == ICMP4_ECHOREQUEST:
-            # imcp4_code SHOULD be set to 0 (RFC 792)
-            if not self.code == 0:
-                return "ICMPv4 sanity check warning - imcp4_code SHOULD be set to 0 (RFC 792)"
+                return "ICMPv4 sanity - 'code' must be set to [0-15] (RFC 792)"
 
         return False

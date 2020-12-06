@@ -83,15 +83,15 @@ class FastPacketParser:
         if self.ether.type == fpp_ether.ETHER_TYPE_IP4:
             self.ip = self.ip4 = fpp_ip4.Ip4Packet(self._frame, self.ether.dptr)
             if self.ip4.packet_parse_failed:
-                self.logger.critical(f"{self.tracker} - {self.ip4.sanity_check_failed}")
+                self.logger.critical(f"{self.tracker} - {self.ip4.packet_parse_failed}")
                 return
             self.logger.debug(f"{self.tracker} - {self.ip4}")
 
             # ICMPv4 packet parsing
             if self.ip4.proto == fpp_ip4.IP4_PROTO_ICMP4:
                 self.icmp4 = fpp_icmp4.Icmp4Packet(self._frame, self.ip4.dptr)
-                if self.icmp4.sanity_check_failed:
-                    self.logger.critical(f"{self.tracker} - {self.icmp4.sanity_check_failed}")
+                if self.icmp4.packet_parse_failed:
+                    self.logger.critical(f"{self.tracker} - {self.icmp4.packet_parse_failed}")
                     return
                 self.logger.debug(f"{self.tracker} - {self.icmp4}")
                 return

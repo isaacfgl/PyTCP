@@ -37,7 +37,7 @@
 
 
 #
-# fpp_arp.py - Fast Packet Parser class for ARP protocol
+# fpp_arp.py - Fast Packet Parser support class for ARP protocol
 #
 
 

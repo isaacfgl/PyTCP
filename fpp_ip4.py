@@ -37,7 +37,7 @@
 
 
 #
-# fpp_ip4.py - packet parser for IPv4 protocol
+# fpp_ip4.py - Fast Packet Parser support class for IPv4 protocol
 #
 
 

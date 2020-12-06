@@ -37,7 +37,7 @@
 
 
 #
-# fpp_ether.py - Fast Packet Parser class for Ethernet protocol
+# fpp_ether.py - Fast Packet Parser support class for Ethernet protocol
 #
 
 

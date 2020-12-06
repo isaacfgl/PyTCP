@@ -889,7 +889,7 @@ class Icmp6Packet:
                 self.logger.debug(f"{self.tracker} - ICMPv6 sanity check fail - icmp6_ns_target_address MUST be unicast address (RFC 4861)")
                 return False
             # icmp6_rs_opt_slla MUST NOT be included if ip6_src is unspecified address
-            if ip6_src.is_unspecified and not self.icmp6_nd_opt_slla is None:
+            if ip6_src.is_unspecified and self.icmp6_nd_opt_slla is not None:
                 self.logger.debug(f"{self.tracker} - ICMPv6 sanity check fail - icmp6_rs_opt_slla MUST NOT be included if ip6_src is unspecified address")
                 return False
 
