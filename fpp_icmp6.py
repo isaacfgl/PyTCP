@@ -46,7 +46,6 @@ import struct
 import config
 from ip_helper import inet_cksum
 from ipv6_address import IPv6Address, IPv6Network
-from tracker import Tracker
 
 # Destination Unreachable message (1/[0-6])
 
@@ -568,7 +567,7 @@ class Icmp6Packet:
 
         if self.type == ICMP6_UNREACHABLE:
             # imcp6_code MUST be set to [0-6] (RFC 4861)
-            if not self.code in {0, 1, 2, 3, 4, 5, 6}:
+            if self.code not in {0, 1, 2, 3, 4, 5, 6}:
                 return "ICMPv6 sanity check fail - imcp6_code MUST be set to [0-6] (RFC 4861)"
 
         elif self.type == ICMP6_PACKET_TOO_BIG:
@@ -578,12 +577,12 @@ class Icmp6Packet:
 
         elif self.type == ICMP6_TIME_EXCEEDED:
             # imcp6_code MUST be set to [0-1] (RFC 4861)
-            if not self.code in {0, 1}:
+            if self.code not in {0, 1}:
                 return "ICMPv6 sanity check fail - imcp6_code MUST be set to [0-1] (RFC 4861)"
 
         elif self.type == ICMP6_PARAMETER_PROBLEM:
             # imcp6_code MUST be set to [0-2] (RFC 4861)
-            if not self.code in {0, 1, 2}:
+            if self.code not in {0, 1, 2}:
                 return "ICMPv6 sanity check fail - imcp6_code MUST be set to [0-2] (RFC 4861)"
 
         elif self.type == ICMP6_ECHOREQUEST:

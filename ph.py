@@ -53,10 +53,10 @@ import ps_dhcp
 import ps_icmp6
 import stack
 from arp_cache import ArpCache
+from fpp import FastPacketParser
 from icmp6_nd_cache import ICMPv6NdCache
 from ipv4_address import IPv4Address, IPv4Interface
 from ipv6_address import IPv6Address, IPv6Interface, IPv6Network
-from fpp import FastPacketParser
 from rx_ring import RxRing
 from tx_ring import TxRing
 from udp_metadata import UdpMetadata

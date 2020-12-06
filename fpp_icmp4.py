@@ -210,7 +210,7 @@ class Icmp4Packet:
 
         if self.type == ICMP4_UNREACHABLE:
             # imcp4_code MUST be set to [0-15] (RFC 792)
-            if not self.code in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}:
+            if self.code not in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}:
                 return "ICMPv4 sanity check fail - imcp4_code MUST be set to [0-15] (RFC 792)"
 
         elif self.type == ICMP4_ECHOREQUEST:

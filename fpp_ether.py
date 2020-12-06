@@ -72,49 +72,50 @@ ETHER_TYPE_TABLE = {ETHER_TYPE_ARP: "ARP", ETHER_TYPE_IP4: "IPv4", ETHER_TYPE_IP
 class EtherPacket:
     """ Ethernet packet support class """
 
-    def __init__(self, raw_packet, hptr):
+    def __init__(self, frame, hptr=0):
         """ Class constructor """
 
-        self.raw_packet = raw_packet
-        self.hptr = hptr
+        self._frame = frame
+        self._hptr = hptr
 
-        self.packet_check_failed = self.__packet_integrity_check()
-        if self.packet_check_failed:
+        self.packet_parse_failed = self._packet_integrity_check() or self._packet_sanity_check()
+        if self.packet_parse_failed:
             return
 
-        self.packet_check_failed = self.__packet_sanity_check()
-        if self.packet_check_failed:
-            return
-        
-        self.dptr = self.hptr + ETHER_HEADER_LEN
+        self.dptr = self._hptr + ETHER_HEADER_LEN
 
     def __str__(self):
-        """ Short packet log string """
+        """ Packet log string """
 
         return f"ETHER {self.src} > {self.dst}, 0x{self.type:0>4x} ({ETHER_TYPE_TABLE.get(self.type, '???')})"
 
+    def __len__(self):
+        """ Packet length """
+
+        return len(self._frame) - self._hptr
+
     @property
     def dst(self):
-        """ Read the 'dst' field """
+        """ Read 'Destination MAC address' field """
 
         if not hasattr(self, "_dst"):
-            self._dst = ":".join([f"{_:0>2x}" for _ in self.raw_packet[self.hptr + 0 : self.hptr + 6]])
+            self._dst = ":".join([f"{_:0>2x}" for _ in self._frame[self._hptr + 0 : self._hptr + 6]])
         return self._dst
 
     @property
     def src(self):
-        """ Read the 'src' field """
+        """ Read 'Source MAC address' field """
 
         if not hasattr(self, "_src"):
-            self._src = ":".join([f"{_:0>2x}" for _ in self.raw_packet[self.hptr + 6 : self.hptr + 12]])
+            self._src = ":".join([f"{_:0>2x}" for _ in self._frame[self._hptr + 6 : self._hptr + 12]])
         return self._src
 
     @property
     def type(self):
-        """ Read the 'type' field """
+        """ Read 'EtherType' field """
 
         if not hasattr(self, "_type"):
-            self._type =  struct.unpack("!H", self.raw_packet[self.hptr + 12 : self.hptr + 14])[0]
+            self._type = struct.unpack("!H", self._frame[self._hptr + 12 : self._hptr + 14])[0]
         return self._type
 
     @property
@@ -122,27 +123,43 @@ class EtherPacket:
         """ Read the data packet carries """
 
         if not hasattr(self, "_data"):
-            self._data = self.raw_packet[self.hptr + ETHER_HEADER_LEN : ]
+            self._data = self._frame[self._hptr + ETHER_HEADER_LEN :]
         return self._data
 
-    def __packet_integrity_check(self):
+    @property
+    def packet(self):
+        """ Read the whole packet """
+
+        if not hasattr(self, "_packet"):
+            self._packet = self._frame[self._hptr :]
+        return self._packet
+
+    @property
+    def plen(self):
+        """ Calculate packet length """
+
+        if not hasattr(self, "_plen"):
+            self._plen = len(self)
+        return self._plen
+
+    def _packet_integrity_check(self):
         """ Packet integrity check to be run on raw packet prior to parsing to make sure parsing is safe """
 
         if not config.packet_integrity_check:
             return False
 
-        if len(self.raw_packet) - self.hptr < 14:
-            return "ETHER integrity fail - wrong packet length (I)"
+        if len(self) < ETHER_HEADER_LEN:
+            return "ETHER integrity - wrong packet length (I)"
 
         return False
 
-    def __packet_sanity_check(self):
+    def _packet_sanity_check(self):
         """ Packet sanity check to be run on parsed packet to make sure packet's fields contain sane values """
 
         if not config.packet_sanity_check:
             return False
 
         if self.type < ETHER_TYPE_MIN:
-            return "ETHER sanity fail - value of ether_type < 0x0600"
+            return "ETHER sanity - 'ether_type' must be greater than 0x0600"
 
         return False

@@ -37,7 +37,7 @@
 
 
 #
-# fpp_arp.py - packet_parser for ARP protocol
+# fpp_arp.py - Fast Packet Parser class for ARP protocol
 #
 
 
@@ -49,19 +49,19 @@ from ipv4_address import IPv4Address
 # ARP packet header - IPv4 stack version only
 
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-# |         Hardware Type         |         Protocol Type         |
+# |         Hardware type         |         Protocol type         |
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-# |  Hard Length  |  Proto Length |           Operation           |
+# |  Hard length  |  Proto length |           Operation           |
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 # |                                                               >
-# +        Sender Mac Address     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-# >                               |       Sender IP Address       >
+# +        Sender MAC address     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+# >                               |       Sender IP address       >
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 # >                               |                               >
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+       Target MAC Address      |
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+       Target MAC address      |
 # >                                                               |
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-# |                       Target IP Address                       |
+# |                       Target IP address                       |
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 
@@ -74,29 +74,16 @@ ARP_OP_REPLY = 2
 class ArpPacket:
     """ ARP packet support class """
 
-    def __init__(self, raw_packet, hptr):
+    def __init__(self, frame, hptr):
         """ Class constructor """
 
-        self.sanity_check_failed = self.__pre_parse_sanity_check(raw_packet, hptr)
-        if self.sanity_check_failed:
-            return
+        self._frame = frame
+        self._hptr = hptr
 
-        self.hrtype = struct.unpack("!H", raw_packet[hptr + 0 : hptr + 2])[0]
-        self.prtype = struct.unpack("!H", raw_packet[hptr + 2 : hptr + 4])[0]
-        self.hrlen = raw_packet[hptr + 4]
-        self.prlen = raw_packet[hptr + 5]
-        self.oper = struct.unpack("!H", raw_packet[hptr + 6 : hptr + 8])[0]
-        self.sha = ":".join([f"{_:0>2x}" for _ in raw_packet[hptr + 8 : hptr + 14]])
-        self.spa = IPv4Address(raw_packet[hptr + 14 : hptr + 18])
-        self.tha = ":".join([f"{_:0>2x}" for _ in raw_packet[hptr + 18 : hptr + 24]])
-        self.tpa = IPv4Address(raw_packet[hptr + 24 : hptr + 28])
-
-        self.sanity_check_failed = self.__post_parse_sanity_check()
-
-        self.hptr = hptr
+        self.packet_parse_failed = self._packet_integrity_check() or self._packet_sanity_check()
 
     def __str__(self):
-        """ Short packet log string """
+        """ Packet log string """
 
         if self.oper == ARP_OP_REQUEST:
             return f"ARP request {self.spa} / {self.sha} > {self.tpa} / {self.tha}"
@@ -104,36 +91,117 @@ class ArpPacket:
             return f"ARP reply {self.spa} / {self.sha} > {self.tpa} / {self.tha}"
         return f"ARP unknown operation {self.oper}"
 
-    def __pre_parse_sanity_check(self, raw_packet, hptr):
-        """ Preliminary sanity check to be run on raw ARP packet prior to packet parsing """
+    def __len__(self):
+        """ Packet length """
 
-        if not config.pre_parse_sanity_check:
+        return len(self._frame) - self._hptr
+
+    @property
+    def hrtype(self):
+        """ Read 'Hardware address type' field """
+
+        if not hasattr(self, "_hrtype"):
+            self._hrtype = struct.unpack("!H", self._frame[self._hptr + 0 : self._hptr + 2])[0]
+        return self._hrtype
+
+    @property
+    def prtype(self):
+        """ Read 'Protocol address type' field """
+
+        if not hasattr(self, "_prtype"):
+            self._prtype = struct.unpack("!H", self._frame[self._hptr + 2 : self._hptr + 4])[0]
+        return self._prtype
+
+    @property
+    def hrlen(self):
+        """ Read 'Hardware address length' field """
+
+        return self._frame[self._hptr + 4]
+
+    @property
+    def prlen(self):
+        """ Read 'Protocol address length' field """
+
+        return self._frame[self._hptr + 5]
+
+    @property
+    def oper(self):
+        """ Read 'Operation' field """
+
+        if not hasattr(self, "_oper"):
+            self._oper = struct.unpack("!H", self._frame[self._hptr + 6 : self._hptr + 8])[0]
+        return self._oper
+
+    @property
+    def sha(self):
+        """ Read 'Sender hardware address' field """
+
+        if not hasattr(self, "_sha"):
+            self._sha = ":".join([f"{_:0>2x}" for _ in self._frame[self._hptr + 8 : self._hptr + 14]])
+        return self._sha
+
+    @property
+    def spa(self):
+        """ Read 'Sender protocol address' field """
+
+        if not hasattr(self, "_spa"):
+            self._spa = IPv4Address(self._frame[self._hptr + 14 : self._hptr + 18])
+        return self._spa
+
+    @property
+    def tha(self):
+        """ Read 'Target hardware address' field """
+
+        if not hasattr(self, "_tha"):
+            self._tha = ":".join([f"{_:0>2x}" for _ in self._frame[self._hptr + 18 : self._hptr + 24]])
+        return self._tha
+
+    @property
+    def tpa(self):
+        """ Read 'Target protocol address' field """
+
+        if not hasattr(self, "_tpa"):
+            self._tpa = IPv4Address(self._frame[self._hptr + 24 : self._hptr + 28])
+        return self._tpa
+
+    @property
+    def packet(self):
+        """ Read the whole packet """
+
+        if not hasattr(self, "_packet"):
+            self._packet = self._frame[self._hptr :]
+        return self._packet
+
+    def _packet_integrity_check(self):
+        """ Packet integrity check to be run on raw packet prior to parsing to make sure parsing is safe """
+
+        if not config.packet_integrity_check:
             return False
 
-        if len(raw_packet) - hptr < 28:
-            return "ARP sanity check fail - wrong packet length (I)"
+        if len(self) < ARP_HEADER_LEN:
+            return "ARP integrity - wrong packet length (I)"
 
         return False
 
-    def __post_parse_sanity_check(self):
-        """ Sanity check to be run on parsed ARP packet """
+    def _packet_sanity_check(self):
+        """ Packet sanity check to be run on parsed packet to make sure packet's fields contain sane values """
 
-        if not config.post_parse_sanity_check:
+        if not config.packet_sanity_check:
             return False
 
         if not self.hrtype == 1:
-            return "ARP sanity check fail - value of arp_hrtype is not 1"
+            return "ARP sanity - 'arp_hrtype' must be 1"
 
         if not self.prtype == 0x0800:
-            return "ARP sanity check fail - value of arp_prtype is not 0x0800"
+            return "ARP sanity - 'arp_prtype' must be 0x0800"
 
         if not self.hrlen == 6:
-            return "ARP sanity check fail - value of arp_hrlen is not 6"
+            return "ARP sanity - 'arp_hrlen' must be 6"
 
         if not self.prlen == 4:
-            return "ARP sanity check fail - value of arp_prlen is not 4"
+            return "ARP sanity - 'arp_prlen' must be 4"
 
-        if not self.oper in {1, 2}:
-            return "ARP sanity check fail - value of oper is not [1-2]"
+        if self.oper not in {1, 2}:
+            return "ARP sanity - 'oper' must be [1-2]"
 
         return False

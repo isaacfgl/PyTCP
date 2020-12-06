@@ -50,15 +50,15 @@ from ipv4_address import IPv4Address
 # IPv4 protocol header
 
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-# |Version|  IHL  |   DSCP    |ECN|          Total Length         |
+# |Version|  IHL  |   DSCP    |ECN|          Packet length        |
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-# |         Identification        |Flags|      Fragment Offset    |
+# |         Identification        |Flags|      Fragment offset    |
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-# |  Time to Live |    Protocol   |         Header Checksum       |
+# |  Time to live |    Protocol   |         Header checksum       |
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-# |                       Source Address                          |
+# |                       Source address                          |
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-# |                    Destination Address                        |
+# |                    Destination address                        |
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 # ~                    Options                    ~    Padding    ~
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -126,151 +126,254 @@ ECN_TABLE = {0b00: "Non-ECT", 0b10: "ECT(0)", 0b01: "ECT(1)", 0b11: "CE"}
 class Ip4Packet:
     """ IPv4 packet support class """
 
-    def __init__(self, raw_packet, hptr):
+    def __init__(self, frame, hptr):
         """ Class constructor """
 
-        self.sanity_check_failed = self.__pre_parse_sanity_check(raw_packet, hptr)
-        if self.sanity_check_failed:
+        self._frame = frame
+        self._hptr = hptr
+
+        self.packet_parse_failed = self._packet_integrity_check() or self._packet_sanity_check()
+        if self.packet_parse_failed:
             return
 
-        self.ver = raw_packet[hptr + 0] >> 4
-        self.hlen = (raw_packet[hptr + 0] & 0b00001111) << 2
-        self.dscp = (raw_packet[hptr + 1] & 0b11111100) >> 2
-        self.ecn = raw_packet[hptr + 1] & 0b00000011
-        self.plen = struct.unpack("!H", raw_packet[hptr + 2 : hptr + 4])[0]
-        self.packet_id = struct.unpack("!H", raw_packet[hptr + 4 : hptr + 6])[0]
-        self.flag_reserved = bool(struct.unpack("!H", raw_packet[hptr + 6 : hptr + 8])[0] & 0b1000000000000000)
-        self.flag_df = bool(struct.unpack("!H", raw_packet[hptr + 6 : hptr + 8])[0] & 0b0100000000000000)
-        self.flag_mf = bool(struct.unpack("!H", raw_packet[hptr + 6 : hptr + 8])[0] & 0b0010000000000000)
-        self.frag_offset = (struct.unpack("!H", raw_packet[hptr + 6 : hptr + 8])[0] & 0b0001111111111111) << 3
-        self.ttl = raw_packet[hptr + 8]
-        self.proto = raw_packet[hptr + 9]
-        self.cksum = struct.unpack("!H", raw_packet[hptr + 10 : hptr + 12])[0]
-        self.src = IPv4Address(raw_packet[hptr + 12 : hptr + 16])
-        self.dst = IPv4Address(raw_packet[hptr + 16 : hptr + 20])
-
-        self.options = []
-
-        opt_cls = {}
-
-        optr = hptr + IP4_HEADER_LEN
-
-        while optr < hptr + self.hlen:
-
-            if raw_packet[optr] == IP4_OPT_EOL:
-                self.options.append(Ip4OptEol())
-                break
-
-            if raw_packet[optr] == IP4_OPT_NOP:
-                self.options.append(Ip4OptNop())
-                optr += IP4_OPT_NOP_LEN
-                continue
-
-            self.options.append(opt_cls.get(raw_packet[optr], Ip4OptUnk)(raw_packet, optr))
-            optr += raw_packet[optr + 1]
-
-        self.hptr = hptr
-        self.dptr = hptr + self.hlen
-
-        self.sanity_check_failed = self.__post_parse_sanity_check()
+        self.dptr = self._hptr + self.hlen
 
     def __str__(self):
         """ Short packet log string """
 
         return (
-            f"IPv4 {self.src} > {self.dst}, proto {self.proto} ({IP4_PROTO_TABLE.get(self.proto, '???')}), id {self.packet_id}"
-            + f"{', DF' if self.flag_df else ''}{', MF' if self.flag_mf else ''}, offset {self.frag_offset}, plen {self.plen}"
+            f"IPv4 {self.src} > {self.dst}, proto {self.proto} ({IP4_PROTO_TABLE.get(self.proto, '???')}), id {self.id}"
+            + f"{', DF' if self.flag_df else ''}{', MF' if self.flag_mf else ''}, offset {self.offset}, plen {self.plen}"
             + f", ttl {self.ttl}"
         )
 
+    def __len__(self):
+        """ Packet length """
+
+        return len(self._frame) - self._hptr
+
+    @property
+    def ver(self):
+        """ Read 'Version' field """
+
+        if not hasattr(self, "_ver"):
+            self._ver = self._frame[self._hptr + 0] >> 4
+        return self._ver
+
+    @property
+    def hlen(self):
+        """ Read 'Header length' field """
+
+        if not hasattr(self, "_hlen"):
+            self._hlen = (self._frame[self._hptr + 0] & 0b00001111) << 2
+        return self._hlen
+
+    @property
+    def dscp(self):
+        """ Read 'DSCP' field """
+
+        if not hasattr(self, "_dscp"):
+            self._dscp = (self._frame[self._hptr + 1] & 0b11111100) >> 2
+        return self._dscp
+
+    @property
+    def ecn(self):
+        """ Read 'ECN' field """
+
+        if not hasattr(self, "_ecn"):
+            self._ecn = self._frame[self._hptr + 1] & 0b00000011
+        return self._ecn
+
+    @property
+    def plen(self):
+        """ Read 'Packet length' field """
+
+        if not hasattr(self, "_plen"):
+            self._plen = struct.unpack("!H", self._frame[self._hptr + 2 : self._hptr + 4])[0]
+        return self._plen
+
+    @property
+    def id(self):
+        """ Read 'Identification' field """
+
+        if not hasattr(self, "_id"):
+            self._id = struct.unpack("!H", self._frame[self._hptr + 4 : self._hptr + 6])[0]
+        return self._id
+
+    @property
+    def flag_df(self):
+        """ Read 'DF flag' field """
+
+        if not hasattr(self, "_flag_df"):
+            self._flag_df = bool(struct.unpack("!H", self._frame[self._hptr + 6 : self._hptr + 8])[0] & 0b0100000000000000)
+        return self._flag_df
+
+    @property
+    def flag_mf(self):
+        """ Read 'MF flag' field """
+
+        if not hasattr(self, "_flag_mf"):
+            self._flag_mf = bool(struct.unpack("!H", self._frame[self._hptr + 6 : self._hptr + 8])[0] & 0b0010000000000000)
+        return self._flag_mf
+
+    @property
+    def offset(self):
+        """ Read 'Fragment offset' field """
+
+        if not hasattr(self, "_offset"):
+            self._offset = (struct.unpack("!H", self._frame[self._hptr + 6 : self._hptr + 8])[0] & 0b0001111111111111) << 3
+        return self._offset
+
+    @property
+    def ttl(self):
+        """ Read 'TTL' field """
+
+        if not hasattr(self, "_ttl"):
+            self._ttl = self._frame[self._hptr + 8]
+        return self._ttl
+
+    @property
+    def proto(self):
+        """ Read 'Protocol' field """
+
+        return self._frame[self._hptr + 9]
+
+    @property
+    def cksum(self):
+        """ Read 'Checksum' field """
+
+        if not hasattr(self, "_cksum"):
+            self._cksum = struct.unpack("!H", self._frame[self._hptr + 10 : self._hptr + 12])[0]
+        return self._cksum
+
+    @property
+    def src(self):
+        """ Read 'Source address' field """
+
+        if not hasattr(self, "_src"):
+            self._src = IPv4Address(self._frame[self._hptr + 12 : self._hptr + 16])
+        return self._src
+
+    @property
+    def dst(self):
+        """ Read 'Destination address' field """
+
+        if not hasattr(self, "_dst"):
+            self._dst = IPv4Address(self._frame[self._hptr + 16 : self._hptr + 20])
+        return self._dst
+
+    @property
+    def options(self):
+        """ Read list of options """
+
+        if not hasattr(self, "_options"):
+            self._options = []
+            switch = {}
+            optr = self._hptr + IP4_HEADER_LEN
+
+            while optr < self._hptr + self.hlen:
+                if self._frame[optr] == IP4_OPT_EOL:
+                    self.options.append(Ip4OptEol())
+                    break
+                if self._frame[optr] == IP4_OPT_NOP:
+                    self.options.append(Ip4OptNop())
+                    optr += IP4_OPT_NOP_LEN
+                    continue
+                self.options.append(switch.get(self._frame[optr], Ip4OptUnk)(self._frame, optr))
+                optr += self._frame[optr + 1]
+
+        return self._options
+
+    @property
+    def data(self):
+        """ Read the data packet carries """
+
+        if not hasattr(self, "_data"):
+            self._data = self._frame[self._hptr + self.hlen :]
+        return self._data
+
+    @property
+    def packet(self):
+        """ Read the whole packet """
+
+        if not hasattr(self, "_packet"):
+            self._packet = self._frame[self._hptr :]
+        return self._packet
+
     @property
     def pseudo_header(self):
-        """ Returns IPv4 pseudo header that is used by TCP and UDP to compute their checksums """
+        """ Create IPv4 pseudo header used by TCP and UDP to compute their checksums """
 
-        return struct.pack("! 4s 4s BBH", self.src.packed, self.dst.packed, 0, self.proto, self.plen - self.hlen)
+        if not hasattr(self, "_pseudo_header"):
+            self._pseudo_header = struct.pack("! 4s 4s BBH", self.src.packed, self.dst.packed, 0, self.proto, self.plen - self.hlen)
+        return self._pseudo_header
 
-    def get_option(self, name):
-        """ Find specific option by its name """
+    def _packet_integrity_check(self):
+        """ Packet integrity check to be run on raw packet prior to parsing to make sure parsing is safe """
 
-        for option in self.options:
-            if option.name == name:
-                return option
-        return None
-
-    def __pre_parse_sanity_check(self, raw_packet, hptr):
-        """ Preliminary sanity check to be run on raw IPv4 packet prior to packet parsing """
-
-        if not config.pre_parse_sanity_check:
+        if not config.packet_integrity_check:
             return False
 
-        if len(raw_packet) - hptr < 20:
-            return "IPv4 sanity check fail - wrong packet length (I)"
+        if len(self) < IP4_HEADER_LEN:
+            return "IPv4 integrity - wrong packet length (I)"
 
-        hlen = (raw_packet[hptr + 0] & 0b00001111) << 2
-        plen = struct.unpack("!H", raw_packet[hptr + 2 : hptr + 4])[0]
-        if not 20 <= hlen <= plen == len(raw_packet) - hptr:
-            return "IPv4 sanity check fail - wrong packet length (II)"
+        hlen = (self._frame[self._hptr + 0] & 0b00001111) << 2
+        plen = struct.unpack("!H", self._frame[self._hptr + 2 : self._hptr + 4])[0]
+        if not IP4_HEADER_LEN <= hlen <= plen == len(self):
+            return "IPv4 integrity - wrong packet length (II)"
 
         # Cannot compute checksum earlier because it depends on sanity of hlen field
-        if inet_cksum(raw_packet[hptr : hptr + hlen]):
-            return "IPv4 sanity check fail - wrong packet checksum"
+        if inet_cksum(self._frame[self._hptr : self._hptr + hlen]):
+            return "IPv4 integriy - wrong packet checksum"
 
-        optr = hptr + 20
-        while optr < hptr + hlen:
-            if raw_packet[optr] == IP4_OPT_EOL:
+        optr = self._hptr + IP4_HEADER_LEN
+        while optr < self._hptr + hlen:
+            if self._frame[optr] == IP4_OPT_EOL:
                 break
-            if raw_packet[optr] == IP4_OPT_NOP:
+            if self._frame[optr] == IP4_OPT_NOP:
                 optr += 1
-                if optr > hptr + hlen:
-                    return "IPv4 sanity check fail - wrong option length (I)"
+                if optr > self._hptr + hlen:
+                    return "IPv4 integrity - wrong option length (I)"
                 continue
-            if optr + 1 > hptr + hlen:
-                return "IPv4 sanity check fail - wrong option length (II)"
-            if raw_packet[optr + 1] == 0:
-                return "IPv4 sanity check fail - wrong option length (III)"
-            optr += raw_packet[optr + 1]
-            if optr > hptr + hlen:
-                return "IPv4 sanity check fail - wrong option length (IV)"
+            if optr + 1 > self._hptr + hlen:
+                return "IPv4 integrity - wrong option length (II)"
+            if self._frame[optr + 1] == 0:
+                return "IPv4 integrity - wrong option length (III)"
+            optr += self._frame[optr + 1]
+            if optr > self._hptr + hlen:
+                return "IPv4 integrity - wrong option length (IV)"
 
         return False
 
-    def __post_parse_sanity_check(self):
-        """ Sanity check to be run on parsed IPv4 packet """
+    def _packet_sanity_check(self):
+        """ Packet sanity check to be run on parsed packet to make sure packet's fields contain sane values """
 
         if not config.post_parse_sanity_check:
             return False
 
-        # ip4_ver not set to 4
         if not self.ver == 4:
-            return "IP sanity check fail - value of ip4_ver is not 4"
+            return "IP sanityi - 'ver' must be 4"
 
-        # ip4_ttl set to 0
         if self.ver == 0:
-            return "IP sanity check fail - value of ip4_ttl is 0"
+            return "IP sanity - 'ttl' must be greater than 0"
 
-        # ip4_src address is multicast
         if self.src.is_multicast:
-            return "IP sanity check fail - ip4_src address is multicast"
+            return "IP sanity - 'src' must not be multicast"
 
-        # ip4_src address is reserved
         if self.src.is_reserved:
-            return "IP sanity check fail - ip4_src address is reserved"
+            return "IP sanity - 'src' must not be reserved"
 
-        # ip4_src address is limited broadcast
         if self.src.is_limited_broadcast:
-            return "IP sanity check fail - ip4_src address is limited broadcast"
+            return "IP sanity - 'src' must not be limited broadcast"
 
-        # DF and MF flags set simultaneously
         if self.flag_df and self.flag_mf:
-            return "IP sanity check fail - DF and MF flags set simultaneously"
+            return "IP sanity - 'flag_df' and 'flag_mf' must not be set simultaneously"
 
-        # Fragment offset not zero but DF flag is set
-        if self.frag_offset and self.flag_df:
-            return "IP sanity check fail - value of ip4_frag_offset s not zeor but DF flag set"
+        if self.offset and self.flag_df:
+            return "IP sanity - 'offset' must be 0 when 'df_flag' is set"
 
-        # Packet contains options
         if self.options and config.ip4_option_packet_drop:
-            return "IP sanity check fail - packet contains options"
+            return "IP sanity - packet must not contain options"
 
         return False
 
@@ -318,10 +421,10 @@ class Ip4OptNop:
 class Ip4OptUnk:
     """ IP option not supported by this stack """
 
-    def __init__(self, raw_packet, optr):
-        self.kind = raw_packet[optr + 0]
-        self.len = raw_packet[optr + 1]
-        self.data = raw_packet[optr + 2 : optr + self.len]
+    def __init__(self, frame, optr):
+        self.kind = frame[optr + 0]
+        self.len = frame[optr + 1]
+        self.data = frame[optr + 2 : optr + self.len]
 
     def __str__(self):
         return f"unk-{self.kind}-{self.len}"

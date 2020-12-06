@@ -41,11 +41,7 @@
 #
 
 
-import ps_icmp4
 import ps_ip4
-import ps_tcp
-import ps_udp
-from ip_helper import inet_cksum
 
 ip4_fragments = {}
 

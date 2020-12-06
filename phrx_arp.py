@@ -88,7 +88,7 @@ def phrx_arp(self, packet_rx):
                 and packet_rx.arp.tha == self.mac_unicast
                 and packet_rx.arp.tpa == IPv4Address("0.0.0.0")
             ):
-                self.logger.warning(f"ARP Probe detected conflict for IP {arp_packet_rx.arp_spa} with host at {arp_packet_rx.arp_sha}")
+                self.logger.warning(f"ARP Probe detected conflict for IP {packet_rx.arp.spa} with host at {packet_rx.arp.sha}")
                 self.arp_probe_unicast_conflict.add(packet_rx.arp.spa)
                 return
 
