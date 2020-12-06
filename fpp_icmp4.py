@@ -37,7 +37,7 @@
 
 
 #
-# pp_icmp4.py - packet parser for ICMPv4 protocol
+# fpp_icmp4.py - packet parser for ICMPv4 protocol
 #
 
 

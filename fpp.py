@@ -37,24 +37,24 @@
 
 
 #
-# packet_parser.py - module contains packet parser support class
+# fpp.py - module contains Fast Packet Parser support class
 #
 
 import loguru
 
-import pp_arp
-import pp_ether
-import pp_icmp4
-import pp_icmp6
-import pp_ip4
-import pp_ip6
-import pp_tcp
-import pp_udp
+import fpp_arp
+import fpp_ether
+import fpp_icmp4
+import fpp_icmp6
+import fpp_ip4
+import fpp_ip6
+import fpp_tcp
+import fpp_udp
 from tracker import Tracker
 
 
-class PacketParser:
-    """ Packet parser support class """
+class FastPacketParser:
+    """ Fast Packet Parser support class """
 
     def __init__(self, raw_packet):
         """ Class constructor """
@@ -66,15 +66,15 @@ class PacketParser:
         self.raw_packet = raw_packet
 
         # Ethernet packet parsing
-        self.ether = pp_ether.EtherPacket(raw_packet, 0)
+        self.ether = fpp_ether.EtherPacket(raw_packet, 0)
         if self.ether.sanity_check_failed:
             self.logger.critical(f"{self.tracker} - {self.ether.sanity_check_failed}")
             return
         self.logger.debug(f"{self.tracker} - {self.ether}")
 
         # ARP packet parsing
-        if self.ether.type == pp_ether.ETHER_TYPE_ARP:
-            self.arp = pp_arp.ArpPacket(raw_packet, self.ether.dptr)
+        if self.ether.type == fpp_ether.ETHER_TYPE_ARP:
+            self.arp = fpp_arp.ArpPacket(raw_packet, self.ether.dptr)
             if self.arp.sanity_check_failed:
                 self.logger.critical(f"{self.tracker} - {self.arp.sanity_check_failed}")
                 return
@@ -82,16 +82,16 @@ class PacketParser:
             return
 
         # IPv4 packet parsing
-        if self.ether.type == pp_ether.ETHER_TYPE_IP4:
-            self.ip = self.ip4 = pp_ip4.Ip4Packet(raw_packet, self.ether.dptr)
+        if self.ether.type == fpp_ether.ETHER_TYPE_IP4:
+            self.ip = self.ip4 = fpp_ip4.Ip4Packet(raw_packet, self.ether.dptr)
             if self.ip4.sanity_check_failed:
                 self.logger.critical(f"{self.tracker} - {self.ip4.sanity_check_failed}")
                 return
             self.logger.debug(f"{self.tracker} - {self.ip4}")
 
             # ICMPv4 packet parsing
-            if self.ip4.proto == pp_ip4.IP4_PROTO_ICMP4:
-                self.icmp4 = pp_icmp4.Icmp4Packet(raw_packet, self.ip4.dptr)
+            if self.ip4.proto == fpp_ip4.IP4_PROTO_ICMP4:
+                self.icmp4 = fpp_icmp4.Icmp4Packet(raw_packet, self.ip4.dptr)
                 if self.icmp4.sanity_check_failed:
                     self.logger.critical(f"{self.tracker} - {self.icmp4.sanity_check_failed}")
                     return
@@ -99,8 +99,8 @@ class PacketParser:
                 return
 
             # UDP packet parsing
-            if self.ip4.proto == pp_ip4.IP4_PROTO_UDP:
-                self.udp = pp_udp.UdpPacket(raw_packet, self.ip4.dptr, self.ip4.pseudo_header)
+            if self.ip4.proto == fpp_ip4.IP4_PROTO_UDP:
+                self.udp = fpp_udp.UdpPacket(raw_packet, self.ip4.dptr, self.ip4.pseudo_header)
                 if self.udp.sanity_check_failed:
                     self.logger.critical(f"{self.tracker} - {self.udp.sanity_check_failed}")
                     return
@@ -108,8 +108,8 @@ class PacketParser:
                 return
 
             # TCP packet parsing
-            if self.ip4.proto == pp_ip4.IP4_PROTO_TCP:
-                self.tcp = pp_tcp.TcpPacket(raw_packet, self.ip4.dptr, self.ip4.pseudo_header)
+            if self.ip4.proto == fpp_ip4.IP4_PROTO_TCP:
+                self.tcp = fpp_tcp.TcpPacket(raw_packet, self.ip4.dptr, self.ip4.pseudo_header)
                 if self.tcp.sanity_check_failed:
                     self.logger.critical(f"{self.tracker} - {self.tcp.sanity_check_failed}")
                     return
@@ -117,16 +117,16 @@ class PacketParser:
                 return
 
         # IPv6 packet parsing
-        if self.ether.type == pp_ether.ETHER_TYPE_IP6:
-            self.ip = self.ip6 = pp_ip6.Ip6Packet(raw_packet, self.ether.dptr)
+        if self.ether.type == fpp_ether.ETHER_TYPE_IP6:
+            self.ip = self.ip6 = fpp_ip6.Ip6Packet(raw_packet, self.ether.dptr)
             if self.ip6.sanity_check_failed:
                 self.logger.critical(f"{self.tracker} - {self.ip6.sanity_check_failed}")
                 return
             self.logger.debug(f"{self.tracker} - {self.ip6}")
 
             # ICMPv6 packet parsing
-            if self.ip6.next == pp_ip6.IP6_NEXT_HEADER_ICMP6:
-                self.icmp6 = pp_icmp6.Icmp6Packet(raw_packet, self.ip6.dptr, self.ip6.pseudo_header, self.ip6.src, self.ip6.dst, self.ip6.hop)
+            if self.ip6.next == fpp_ip6.IP6_NEXT_HEADER_ICMP6:
+                self.icmp6 = fpp_icmp6.Icmp6Packet(raw_packet, self.ip6.dptr, self.ip6.pseudo_header, self.ip6.src, self.ip6.dst, self.ip6.hop)
                 if self.icmp6.sanity_check_failed:
                     self.logger.critical(f"{self.tracker} - {self.icmp6.sanity_check_failed}")
                     return
@@ -134,8 +134,8 @@ class PacketParser:
                 return
 
             # UDP packet parsing
-            if self.ip6.next == pp_ip6.IP6_NEXT_HEADER_UDP:
-                self.udp = pp_udp.UdpPacket(raw_packet, self.ip6.dptr, self.ip6.pseudo_header)
+            if self.ip6.next == fpp_ip6.IP6_NEXT_HEADER_UDP:
+                self.udp = fpp_udp.UdpPacket(raw_packet, self.ip6.dptr, self.ip6.pseudo_header)
                 if self.udp.sanity_check_failed:
                     self.logger.critical(f"{self.tracker} - {self.udp.sanity_check_failed}")
                     return
@@ -143,8 +143,8 @@ class PacketParser:
                 return
 
             # TCP packet parsing
-            if self.ip6.next == pp_ip6.IP6_NEXT_HEADER_TCP:
-                self.tcp = pp_tcp.TcpPacket(raw_packet, self.ip6.dptr, self.ip6.pseudo_header)
+            if self.ip6.next == fpp_ip6.IP6_NEXT_HEADER_TCP:
+                self.tcp = fpp_tcp.TcpPacket(raw_packet, self.ip6.dptr, self.ip6.pseudo_header)
                 if self.tcp.sanity_check_failed:
                     self.logger.critical(f"{self.tracker} - {self.tcp.sanity_check_failed}")
                     return

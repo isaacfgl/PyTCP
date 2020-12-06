@@ -37,42 +37,40 @@
 
 
 #
-# pp_arp.py - packet_parser for ARP protocol
+# fpp_ethernet.py - packet parser for Ethernet protocol
 #
 
 
 import struct
 
 import config
-from ipv4_address import IPv4Address
 
-# ARP packet header - IPv4 stack version only
+# Ethernet packet header
 
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-# |         Hardware Type         |         Protocol Type         |
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-# |  Hard Length  |  Proto Length |           Operation           |
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 # |                                                               >
-# +        Sender Mac Address     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-# >                               |       Sender IP Address       >
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+# +    Destination MAC Address    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 # >                               |                               >
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+       Target MAC Address      |
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+      Source MAC Address       +
 # >                                                               |
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-# |                       Target IP Address                       |
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+# |           EtherType           |
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 
-ARP_HEADER_LEN = 28
+ETHER_HEADER_LEN = 14
 
-ARP_OP_REQUEST = 1
-ARP_OP_REPLY = 2
+ETHER_TYPE_MIN = 0x0600
+ETHER_TYPE_ARP = 0x0806
+ETHER_TYPE_IP4 = 0x0800
+ETHER_TYPE_IP6 = 0x86DD
 
 
-class ArpPacket:
-    """ ARP packet support class """
+ETHER_TYPE_TABLE = {ETHER_TYPE_ARP: "ARP", ETHER_TYPE_IP4: "IPv4", ETHER_TYPE_IP6: "IPv6"}
+
+
+class EtherPacket:
+    """ Ethernet packet support class """
 
     def __init__(self, raw_packet, hptr):
         """ Class constructor """
@@ -81,59 +79,38 @@ class ArpPacket:
         if self.sanity_check_failed:
             return
 
-        self.hrtype = struct.unpack("!H", raw_packet[hptr + 0 : hptr + 2])[0]
-        self.prtype = struct.unpack("!H", raw_packet[hptr + 2 : hptr + 4])[0]
-        self.hrlen = raw_packet[hptr + 4]
-        self.prlen = raw_packet[hptr + 5]
-        self.oper = struct.unpack("!H", raw_packet[hptr + 6 : hptr + 8])[0]
-        self.sha = ":".join([f"{_:0>2x}" for _ in raw_packet[hptr + 8 : hptr + 14]])
-        self.spa = IPv4Address(raw_packet[hptr + 14 : hptr + 18])
-        self.tha = ":".join([f"{_:0>2x}" for _ in raw_packet[hptr + 18 : hptr + 24]])
-        self.tpa = IPv4Address(raw_packet[hptr + 24 : hptr + 28])
-
-        self.sanity_check_failed = self.__post_parse_sanity_check()
+        self.dst = ":".join([f"{_:0>2x}" for _ in raw_packet[hptr + 0 : hptr + 6]])
+        self.src = ":".join([f"{_:0>2x}" for _ in raw_packet[hptr + 6 : hptr + 12]])
+        self.type = struct.unpack("!H", raw_packet[hptr + 12 : hptr + 14])[0]
 
         self.hptr = hptr
+        self.dptr = hptr + 14
+
+        self.sanity_check_failed = self.__post_parse_sanity_check()
 
     def __str__(self):
         """ Short packet log string """
 
-        if self.oper == ARP_OP_REQUEST:
-            return f"ARP request {self.spa} / {self.sha} > {self.tpa} / {self.tha}"
-        if self.oper == ARP_OP_REPLY:
-            return f"ARP reply {self.spa} / {self.sha} > {self.tpa} / {self.tha}"
-        return f"ARP unknown operation {self.oper}"
+        return f"ETHER {self.src} > {self.dst}, 0x{self.type:0>4x} ({ETHER_TYPE_TABLE.get(self.type, '???')})"
 
     def __pre_parse_sanity_check(self, raw_packet, hptr):
-        """ Preliminary sanity check to be run on raw ARP packet prior to packet parsing """
+        """ Preliminary sanity check to be run on raw Ethernet packet prior to packet parsing """
 
         if not config.pre_parse_sanity_check:
             return False
 
-        if len(raw_packet) - hptr < 28:
-            return "ARP sanity check fail - wrong packet length (I)"
+        if len(raw_packet) - hptr < 14:
+            return "Ethernet sanity check fail - wrong packet length (I)"
 
         return False
 
     def __post_parse_sanity_check(self):
-        """ Sanity check to be run on parsed ARP packet """
+        """ Sanity check to be run on parsed Ethernet packet """
 
         if not config.post_parse_sanity_check:
             return False
 
-        if not self.hrtype == 1:
-            return "ARP sanity check fail - value of arp_hrtype is not 1"
-
-        if not self.prtype == 0x0800:
-            return "ARP sanity check fail - value of arp_prtype is not 0x0800"
-
-        if not self.hrlen == 6:
-            return "ARP sanity check fail - value of arp_hrlen is not 6"
-
-        if not self.prlen == 4:
-            return "ARP sanity check fail - value of arp_prlen is not 4"
-
-        if not self.oper in {1, 2}:
-            return "ARP sanity check fail - value of oper is not [1-2]"
+        if self.type < ETHER_TYPE_MIN:
+            return "Ethernet sanity check fail - value of ether_type < 0x0600"
 
         return False

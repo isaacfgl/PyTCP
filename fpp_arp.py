@@ -37,83 +37,103 @@
 
 
 #
-# pp_udp.py - packet parser for UDP protocol
+# fpp_arp.py - packet_parser for ARP protocol
 #
 
 
 import struct
 
 import config
-from ip_helper import inet_cksum
+from ipv4_address import IPv4Address
 
-# UDP packet header (RFC 768)
+# ARP packet header - IPv4 stack version only
 
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-# |          Source port          |        Destination port       |
+# |         Hardware Type         |         Protocol Type         |
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-# |         Packet length         |            Checksum           |
+# |  Hard Length  |  Proto Length |           Operation           |
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+# |                                                               >
+# +        Sender Mac Address     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+# >                               |       Sender IP Address       >
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+# >                               |                               >
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+       Target MAC Address      |
+# >                                                               |
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+# |                       Target IP Address                       |
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 
-UDP_HEADER_LEN = 8
+ARP_HEADER_LEN = 28
+
+ARP_OP_REQUEST = 1
+ARP_OP_REPLY = 2
 
 
-class UdpPacket:
-    """ UDP packet support class """
+class ArpPacket:
+    """ ARP packet support class """
 
-    def __init__(self, raw_packet, hptr, pseudo_header):
+    def __init__(self, raw_packet, hptr):
         """ Class constructor """
 
-        self.sanity_check_failed = self.__pre_parse_sanity_check(raw_packet, hptr, pseudo_header)
+        self.sanity_check_failed = self.__pre_parse_sanity_check(raw_packet, hptr)
         if self.sanity_check_failed:
             return
 
-        self.sport = struct.unpack("!H", raw_packet[hptr + 0 : hptr + 2])[0]
-        self.dport = struct.unpack("!H", raw_packet[hptr + 2 : hptr + 4])[0]
-        self.plen = struct.unpack("!H", raw_packet[hptr + 4 : hptr + 6])[0]
-        self.cksum = struct.unpack("!H", raw_packet[hptr + 6 : hptr + 8])[0]
-        self.data = raw_packet[hptr + UDP_HEADER_LEN :]
-
-        self.hptr = hptr
-        self.dptr = hptr + UDP_HEADER_LEN
+        self.hrtype = struct.unpack("!H", raw_packet[hptr + 0 : hptr + 2])[0]
+        self.prtype = struct.unpack("!H", raw_packet[hptr + 2 : hptr + 4])[0]
+        self.hrlen = raw_packet[hptr + 4]
+        self.prlen = raw_packet[hptr + 5]
+        self.oper = struct.unpack("!H", raw_packet[hptr + 6 : hptr + 8])[0]
+        self.sha = ":".join([f"{_:0>2x}" for _ in raw_packet[hptr + 8 : hptr + 14]])
+        self.spa = IPv4Address(raw_packet[hptr + 14 : hptr + 18])
+        self.tha = ":".join([f"{_:0>2x}" for _ in raw_packet[hptr + 18 : hptr + 24]])
+        self.tpa = IPv4Address(raw_packet[hptr + 24 : hptr + 28])
 
         self.sanity_check_failed = self.__post_parse_sanity_check()
+
+        self.hptr = hptr
 
     def __str__(self):
         """ Short packet log string """
 
-        return f"UDP {self.sport} > {self.dport}, len {self.plen}"
+        if self.oper == ARP_OP_REQUEST:
+            return f"ARP request {self.spa} / {self.sha} > {self.tpa} / {self.tha}"
+        if self.oper == ARP_OP_REPLY:
+            return f"ARP reply {self.spa} / {self.sha} > {self.tpa} / {self.tha}"
+        return f"ARP unknown operation {self.oper}"
 
-    def __pre_parse_sanity_check(self, raw_packet, hptr, pseudo_header):
-        """ Preliminary sanity check to be run on raw UDP packet prior to packet parsing """
+    def __pre_parse_sanity_check(self, raw_packet, hptr):
+        """ Preliminary sanity check to be run on raw ARP packet prior to packet parsing """
 
         if not config.pre_parse_sanity_check:
             return False
 
-        if inet_cksum(pseudo_header + raw_packet[hptr:]):
-            return "UDP sanity check fail - wrong packet checksum"
-
-        if len(raw_packet) < 8:
-            return "UDP sanity check fail - wrong packet length (I)"
-
-        plen = struct.unpack("!H", raw_packet[hptr + 4 : hptr + 6])[0]
-        if not 8 <= plen == len(raw_packet) - hptr:
-            return "UDP sanity check fail - wrong packet length (II)"
+        if len(raw_packet) - hptr < 28:
+            return "ARP sanity check fail - wrong packet length (I)"
 
         return False
 
     def __post_parse_sanity_check(self):
-        """ Sanity check to be run on parsed UDP packet """
+        """ Sanity check to be run on parsed ARP packet """
 
         if not config.post_parse_sanity_check:
             return False
 
-        # udp_sport set to zero
-        if self.sport == 0:
-            return "TCP sanity check fail - value of udp_sport is 0"
+        if not self.hrtype == 1:
+            return "ARP sanity check fail - value of arp_hrtype is not 1"
 
-        # udp_dport set to zero
-        if self.dport == 0:
-            return "TCP sanity check fail - value of udp_dport is 0"
+        if not self.prtype == 0x0800:
+            return "ARP sanity check fail - value of arp_prtype is not 0x0800"
+
+        if not self.hrlen == 6:
+            return "ARP sanity check fail - value of arp_hrlen is not 6"
+
+        if not self.prlen == 4:
+            return "ARP sanity check fail - value of arp_prlen is not 4"
+
+        if not self.oper in {1, 2}:
+            return "ARP sanity check fail - value of oper is not [1-2]"
 
         return False

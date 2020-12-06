@@ -37,7 +37,7 @@
 
 
 #
-# pp_tcp.py - packet parser for TCP protocol
+# fpp_tcp.py - packet parser for TCP protocol
 #
 
 

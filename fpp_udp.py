@@ -37,80 +37,83 @@
 
 
 #
-# pp_ethernet.py - packet parser for Ethernet protocol
+# fpp_udp.py - packet parser for UDP protocol
 #
 
 
 import struct
 
 import config
+from ip_helper import inet_cksum
 
-# Ethernet packet header
+# UDP packet header (RFC 768)
 
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-# |                                                               >
-# +    Destination MAC Address    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-# >                               |                               >
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+      Source MAC Address       +
-# >                                                               |
+# |          Source port          |        Destination port       |
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-# |           EtherType           |
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+# |         Packet length         |            Checksum           |
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 
-ETHER_HEADER_LEN = 14
-
-ETHER_TYPE_MIN = 0x0600
-ETHER_TYPE_ARP = 0x0806
-ETHER_TYPE_IP4 = 0x0800
-ETHER_TYPE_IP6 = 0x86DD
+UDP_HEADER_LEN = 8
 
 
-ETHER_TYPE_TABLE = {ETHER_TYPE_ARP: "ARP", ETHER_TYPE_IP4: "IPv4", ETHER_TYPE_IP6: "IPv6"}
+class UdpPacket:
+    """ UDP packet support class """
 
-
-class EtherPacket:
-    """ Ethernet packet support class """
-
-    def __init__(self, raw_packet, hptr):
+    def __init__(self, raw_packet, hptr, pseudo_header):
         """ Class constructor """
 
-        self.sanity_check_failed = self.__pre_parse_sanity_check(raw_packet, hptr)
+        self.sanity_check_failed = self.__pre_parse_sanity_check(raw_packet, hptr, pseudo_header)
         if self.sanity_check_failed:
             return
 
-        self.dst = ":".join([f"{_:0>2x}" for _ in raw_packet[hptr + 0 : hptr + 6]])
-        self.src = ":".join([f"{_:0>2x}" for _ in raw_packet[hptr + 6 : hptr + 12]])
-        self.type = struct.unpack("!H", raw_packet[hptr + 12 : hptr + 14])[0]
+        self.sport = struct.unpack("!H", raw_packet[hptr + 0 : hptr + 2])[0]
+        self.dport = struct.unpack("!H", raw_packet[hptr + 2 : hptr + 4])[0]
+        self.plen = struct.unpack("!H", raw_packet[hptr + 4 : hptr + 6])[0]
+        self.cksum = struct.unpack("!H", raw_packet[hptr + 6 : hptr + 8])[0]
+        self.data = raw_packet[hptr + UDP_HEADER_LEN :]
 
         self.hptr = hptr
-        self.dptr = hptr + 14
+        self.dptr = hptr + UDP_HEADER_LEN
 
         self.sanity_check_failed = self.__post_parse_sanity_check()
 
     def __str__(self):
         """ Short packet log string """
 
-        return f"ETHER {self.src} > {self.dst}, 0x{self.type:0>4x} ({ETHER_TYPE_TABLE.get(self.type, '???')})"
+        return f"UDP {self.sport} > {self.dport}, len {self.plen}"
 
-    def __pre_parse_sanity_check(self, raw_packet, hptr):
-        """ Preliminary sanity check to be run on raw Ethernet packet prior to packet parsing """
+    def __pre_parse_sanity_check(self, raw_packet, hptr, pseudo_header):
+        """ Preliminary sanity check to be run on raw UDP packet prior to packet parsing """
 
         if not config.pre_parse_sanity_check:
             return False
 
-        if len(raw_packet) - hptr < 14:
-            return "Ethernet sanity check fail - wrong packet length (I)"
+        if inet_cksum(pseudo_header + raw_packet[hptr:]):
+            return "UDP sanity check fail - wrong packet checksum"
+
+        if len(raw_packet) < 8:
+            return "UDP sanity check fail - wrong packet length (I)"
+
+        plen = struct.unpack("!H", raw_packet[hptr + 4 : hptr + 6])[0]
+        if not 8 <= plen == len(raw_packet) - hptr:
+            return "UDP sanity check fail - wrong packet length (II)"
 
         return False
 
     def __post_parse_sanity_check(self):
-        """ Sanity check to be run on parsed Ethernet packet """
+        """ Sanity check to be run on parsed UDP packet """
 
         if not config.post_parse_sanity_check:
             return False
 
-        if self.type < ETHER_TYPE_MIN:
-            return "Ethernet sanity check fail - value of ether_type < 0x0600"
+        # udp_sport set to zero
+        if self.sport == 0:
+            return "TCP sanity check fail - value of udp_sport is 0"
+
+        # udp_dport set to zero
+        if self.dport == 0:
+            return "TCP sanity check fail - value of udp_dport is 0"
 
         return False

@@ -37,7 +37,7 @@
 
 
 #
-# pp_ip6.py - packet parser IPv6 protocol
+# fpp_ip6.py - packet parser IPv6 protocol
 #
 
 

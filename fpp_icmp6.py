@@ -37,7 +37,7 @@
 
 
 #
-# pp_icmp6.py - packet parser for ICMPv6 protocol
+# fpp_icmp6.py - packet parser for ICMPv6 protocol
 #
 
 
