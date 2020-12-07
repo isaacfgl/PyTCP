@@ -79,7 +79,7 @@ class UdpPacket:
         self.raw_data = raw_data
 
     def __str__(self):
-        """ Short packet log string """
+        """ Packet log string """
 
         return f"UDP {self.udp_sport} > {self.udp_dport}, len {self.udp_plen}"
 

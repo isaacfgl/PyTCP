@@ -409,7 +409,7 @@ class Icmp6Packet:
             return
 
     def __str__(self):
-        """ Short packet log string """
+        """ Packet log string """
 
         log = f"ICMPv6 type {self.icmp6_type}, code {self.icmp6_code}"
 

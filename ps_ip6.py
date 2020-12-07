@@ -185,7 +185,7 @@ class Ip6Packet:
             self.raw_data = raw_data
 
     def __str__(self):
-        """ Short packet log string """
+        """ Packet log string """
 
         return (
             f"IPv6 {self.ip6_src} > {self.ip6_dst}, next {self.ip6_next} ({IP6_NEXT_HEADER_TABLE.get(self.ip6_next, '???')}), flow {self.ip6_flow}"

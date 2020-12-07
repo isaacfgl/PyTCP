@@ -95,7 +95,7 @@ class ArpPacket:
         self.arp_tpa = IPv4Address(arp_tpa)
 
     def __str__(self):
-        """ Short packet log string """
+        """ Packet log string """
 
         if self.arp_oper == ARP_OP_REQUEST:
             return f"ARP request {self.arp_spa} / {self.arp_sha} > {self.arp_tpa} / {self.arp_tha}"

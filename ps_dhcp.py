@@ -270,7 +270,7 @@ class DhcpPacket:
             self.dhcp_options.append(DhcpOptEnd())
 
     def __str__(self):
-        """ Short packet log string """
+        """ Packet log string """
 
         return f"DHCP op {self.dhcp_op}"
 

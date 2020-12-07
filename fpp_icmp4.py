@@ -120,7 +120,7 @@ class Icmp4Packet:
             return
 
     def __str__(self):
-        """ Short packet log string """
+        """ Packet log string """
 
         log = f"ICMPv4 type {self.type}, code {self.code}"
 

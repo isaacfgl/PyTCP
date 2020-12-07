@@ -144,7 +144,7 @@ class Ip6Packet:
         self.dptr = self._hptr + IP6_HEADER_LEN
 
     def __str__(self):
-        """ Short packet log string """
+        """ Packet log string """
 
         return (
             f"IPv6 {self.src} > {self.dst}, next {self.next} ({IP6_NEXT_HEADER_TABLE.get(self.next, '???')}), flow {self.flow}"

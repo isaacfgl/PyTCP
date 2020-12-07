@@ -199,7 +199,7 @@ class Ip4Packet:
             self.ip4_plen = self.ip4_hlen + len(self.raw_data)
 
     def __str__(self):
-        """ Short packet log string """
+        """ Packet log string """
 
         return (
             f"IPv4 {self.ip4_src} > {self.ip4_dst}, proto {self.ip4_proto} ({IP4_PROTO_TABLE.get(self.ip4_proto, '???')}), id {self.ip4_packet_id}"

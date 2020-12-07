@@ -154,7 +154,7 @@ class TcpPacket:
         )
 
     def __str__(self):
-        """ Short packet log string """
+        """ Packet log string """
 
         log = (
             f"TCP {self.tcp_sport} > {self.tcp_dport}, {'N' if self.tcp_flag_ns else ''}{'C' if self.tcp_flag_crw else ''}"

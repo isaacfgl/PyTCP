@@ -146,7 +146,7 @@ class Icmp4Packet:
             self.icmp4_ec_raw_data = icmp4_ec_raw_data
 
     def __str__(self):
-        """ Short packet log string """
+        """ Packet log string """
 
         log = f"ICMPv4 type {self.icmp4_type}, code {self.icmp4_code}"
 

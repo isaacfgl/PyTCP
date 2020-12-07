@@ -99,7 +99,7 @@ class EtherPacket:
         self.raw_data = child_packet.get_raw_packet()
 
     def __str__(self):
-        """ Short packet log string """
+        """ Packet log string """
 
         return f"ETHER {self.ether_src} > {self.ether_dst}, 0x{self.ether_type:0>4x} ({ETHER_TYPE_TABLE.get(self.ether_type, '???')})"
 
