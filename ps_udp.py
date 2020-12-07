@@ -66,44 +66,17 @@ class UdpPacket:
 
     protocol = "UDP"
 
-    def __init__(self, parent_packet=None, udp_sport=None, udp_dport=None, raw_data=None, echo_tracker=None):
+    def __init__(self, udp_sport=None, udp_dport=None, raw_data=None, echo_tracker=None):
         """ Class constructor """
+            
+        self.tracker = Tracker("TX", echo_tracker)
 
-        self.logger = loguru.logger.bind(object_name="ps_udp.")
-        self.sanity_check_failed = False
+        self.udp_sport = udp_sport
+        self.udp_dport = udp_dport
+        self.udp_plen = UDP_HEADER_LEN + len(raw_data)
+        self.udp_cksum = 0
 
-        # Packet parsing
-        if parent_packet:
-            self.tracker = parent_packet.tracker
-            raw_packet = parent_packet.raw_data
-
-            if not self.__pre_parse_sanity_check(raw_packet, parent_packet.ip_pseudo_header):
-                self.sanity_check_failed = True
-                return
-
-            raw_header = raw_packet[:UDP_HEADER_LEN]
-
-            self.raw_data = raw_packet[UDP_HEADER_LEN : struct.unpack("!H", raw_header[4:6])[0]]
-            self.ip_pseudo_header = parent_packet.ip_pseudo_header
-
-            self.udp_sport = struct.unpack("!H", raw_header[0:2])[0]
-            self.udp_dport = struct.unpack("!H", raw_header[2:4])[0]
-            self.udp_plen = struct.unpack("!H", raw_header[4:6])[0]
-            self.udp_cksum = struct.unpack("!H", raw_header[6:8])[0]
-
-            if not self.__post_parse_sanity_check():
-                self.sanity_check_failed = True
-
-        # Packet building
-        else:
-            self.tracker = Tracker("TX", echo_tracker)
-
-            self.udp_sport = udp_sport
-            self.udp_dport = udp_dport
-            self.udp_plen = UDP_HEADER_LEN + len(raw_data)
-            self.udp_cksum = 0
-
-            self.raw_data = raw_data
+        self.raw_data = raw_data
 
     def __str__(self):
         """ Short packet log string """
@@ -143,41 +116,3 @@ class UdpPacket:
 
         return not bool(inet_cksum(ip_pseudo_header + self.raw_packet))
 
-    def __pre_parse_sanity_check(self, raw_packet, pseudo_header):
-        """ Preliminary sanity check to be run on raw UDP packet prior to packet parsing """
-
-        if not config.pre_parse_sanity_check:
-            return True
-
-        if inet_cksum(pseudo_header + raw_packet):
-            self.logger.critical(f"{self.tracker} - UDP sanity check fail - wrong packet checksum")
-            return False
-
-        if len(raw_packet) < 8:
-            self.logger.critical(f"{self.tracker} - UDP sanity check fail - wrong packet length (I)")
-            return False
-
-        plen = struct.unpack("!H", raw_packet[4:6])[0]
-        if not 8 <= plen == len(raw_packet):
-            self.logger.critical(f"{self.tracker} - UDP sanity check fail - wrong packet length (II)")
-            return False
-
-        return True
-
-    def __post_parse_sanity_check(self):
-        """ Sanity check to be run on parsed UDP packet """
-
-        if not config.post_parse_sanity_check:
-            return True
-
-        # udp_sport set to zero
-        if self.udp_sport == 0:
-            self.logger.critical(f"{self.tracker} - TCP sanity check fail - value of udp_sport is 0")
-            return False
-
-        # udp_dport set to zero
-        if self.udp_dport == 0:
-            self.logger.critical(f"{self.tracker} - TCP sanity check fail - value of udp_dport is 0")
-            return False
-
-        return True

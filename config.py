@@ -53,17 +53,15 @@ ip4_support = True
 # It also checks packet's actuall header/options/data lenghts against above values and default minimum/maximum lenghts for given protocol.
 # Also packet options (if any) are checked in similar fashion to ensure they will not exploit or crash parser.
 packet_integrity_check = True
-pre_parse_sanity_check = True  # legacy name
 
 # Packet sanity check, if enabled it validates packet's fields to detect invalid values or invalid combinations of values
 # For example in TCP/UDP it drops packets with port set to 0, in TCP it drop packet with SYN and FIN flags set simultaneously,
 # for ICMPv6 it provides very detailed check of messages integrity
 packet_sanity_check = True
-post_parse_sanity_check = True  # legacy name
 
 # Drop IPv4 packets containing options - this seems to be widely adopted security feature. Stack parses but doesn't support IPv4 options
-# as they are mostly useless anyway
-ip4_option_packet_drop = True
+# as they are mostly useless anyway.
+ip4_option_packet_drop = False
 
 # Unicast MAC addresses assigned to stack, currently there is not any kind of duplicate MAC detection performed
 mac_address = "02:00:00:77:77:77"

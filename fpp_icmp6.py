@@ -508,7 +508,7 @@ class Icmp6Packet:
 
         if not hasattr(self, "_na_flag_r"):
             assert self.type == ICMP6_NEIGHBOR_ADVERTISEMENT
-            self.na_flag_r = bool(self._frame[self._hptr + 4] & 0b10000000)
+            self._na_flag_r = bool(self._frame[self._hptr + 4] & 0b10000000)
         return self._na_flag_r
 
     @property
@@ -517,7 +517,7 @@ class Icmp6Packet:
 
         if not hasattr(self, "_na_flag_s"):
             assert self.type == ICMP6_NEIGHBOR_ADVERTISEMENT
-            self.na_flag_s = bool(self._frame[self._hptr + 4] & 0b01000000)
+            self._na_flag_s = bool(self._frame[self._hptr + 4] & 0b01000000)
         return self._na_flag_s
 
     @property
@@ -526,7 +526,7 @@ class Icmp6Packet:
 
         if not hasattr(self, "_na_flag_o"):
             assert self.type == ICMP6_NEIGHBOR_ADVERTISEMENT
-            self.na_flag_o = bool(self._frame[self._hptr + 4] & 0b00100000)
+            self._na_flag_o = bool(self._frame[self._hptr + 4] & 0b00100000)
         return self._na_flag_o
 
     @property
@@ -535,7 +535,7 @@ class Icmp6Packet:
 
         if not hasattr(self, "_na_target_address"):
             assert self.type == ICMP6_NEIGHBOR_ADVERTISEMENT
-            self.na_target_address = IPv6Address(self._frame[self._hptr + 8 : self._hptr + 24])
+            self._na_target_address = IPv6Address(self._frame[self._hptr + 8 : self._hptr + 24])
         return self._na_target_address
 
     @property

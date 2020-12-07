@@ -273,7 +273,7 @@ class Ip6Packet:
     def _packet_sanity_check(self):
         """ Packet sanity check to be run on parsed packet to make sure packet's fields contain sane values """
 
-        if not config.post_parse_sanity_check:
+        if not config.packet_sanity_check:
             return False
 
         if not self.ver == 6:

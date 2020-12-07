@@ -137,7 +137,6 @@ class Ip6Packet:
 
     def __init__(
         self,
-        parent_packet=None,
         ip6_src=None,
         ip6_dst=None,
         ip6_hop=config.ip6_default_hop,
@@ -151,71 +150,39 @@ class Ip6Packet:
     ):
         """ Class constructor """
 
-        self.logger = loguru.logger.bind(object_name="ps_ip6.")
-        self.sanity_check_failed = False
-
-        # Packet parsing
-        if parent_packet:
-            self.tracker = parent_packet.tracker
-
-            raw_packet = parent_packet.raw_data
-
-            if not self.__pre_parse_sanity_check(raw_packet):
-                self.sanity_check_failed = True
-                return
-
-            raw_header = raw_packet[:IP6_HEADER_LEN]
-
-            self.raw_data = raw_packet[IP6_HEADER_LEN : IP6_HEADER_LEN + struct.unpack("!H", raw_header[4:6])[0]]
-
-            self.ip6_ver = raw_header[0] >> 4
-            self.ip6_dscp = ((raw_header[0] & 0b00001111) << 2) | ((raw_header[1] & 0b11000000) >> 6)
-            self.ip6_ecn = (raw_header[1] & 0b00110000) >> 4
-            self.ip6_flow = ((raw_header[1] & 0b00001111) << 16) | (raw_header[2] << 8) | raw_header[3]
-            self.ip6_dlen = struct.unpack("!H", raw_header[4:6])[0]
-            self.ip6_next = raw_header[6]
-            self.ip6_hop = raw_header[7]
-            self.ip6_src = IPv6Address(raw_header[8:24])
-            self.ip6_dst = IPv6Address(raw_header[24:40])
-
-            if not self.__post_parse_sanity_check():
-                self.sanity_check_failed = True
-
-        # Packet building
+        if tracker:
+            self.tracker = tracker
         else:
-            if tracker:
-                self.tracker = tracker
-            else:
-                self.tracker = child_packet.tracker
+            self.tracker = child_packet.tracker
 
-            self.ip6_ver = 6
-            self.ip6_dscp = ip6_dscp
-            self.ip6_ecn = ip6_ecn
-            self.ip6_flow = ip6_flow
+        self.ip6_ver = 6
+        self.ip6_dscp = ip6_dscp
+        self.ip6_ecn = ip6_ecn
+        self.ip6_flow = ip6_flow
+        self.ip6_next = ip6_next
+        self.ip6_hop = ip6_hop
+        self.ip6_src = IPv6Address(ip6_src)
+        self.ip6_dst = IPv6Address(ip6_dst)
+
+        if child_packet:
+            assert child_packet.protocol in {"ICMPv6", "UDP", "TCP"}, f"Not supported protocol: {child_packet.protocol}"
+
+            if child_packet.protocol == "ICMPv6":
+                self.ip6_next = IP6_NEXT_HEADER_ICMP6
+
+            if child_packet.protocol == "UDP":
+                self.ip6_next = IP6_NEXT_HEADER_UDP
+
+            if child_packet.protocol == "TCP":
+                self.ip6_next = IP6_NEXT_HEADER_TCP
+
+            self.ip6_dlen = len(child_packet.raw_packet)
+            self.raw_data = child_packet.get_raw_packet(self.ip_pseudo_header)
+
+        else:
             self.ip6_next = ip6_next
-            self.ip6_hop = ip6_hop
-            self.ip6_src = IPv6Address(ip6_src)
-            self.ip6_dst = IPv6Address(ip6_dst)
-
-            if child_packet:
-                assert child_packet.protocol in {"ICMPv6", "UDP", "TCP"}, f"Not supported protocol: {child_packet.protocol}"
-
-                if child_packet.protocol == "ICMPv6":
-                    self.ip6_next = IP6_NEXT_HEADER_ICMP6
-
-                if child_packet.protocol == "UDP":
-                    self.ip6_next = IP6_NEXT_HEADER_UDP
-
-                if child_packet.protocol == "TCP":
-                    self.ip6_next = IP6_NEXT_HEADER_TCP
-
-                self.ip6_dlen = len(child_packet.raw_packet)
-                self.raw_data = child_packet.get_raw_packet(self.ip_pseudo_header)
-
-            else:
-                self.ip6_next = ip6_next
-                self.ip6_dlen = len(raw_data)
-                self.raw_data = raw_data
+            self.ip6_dlen = len(raw_data)
+            self.raw_data = raw_data
 
     def __str__(self):
         """ Short packet log string """
@@ -265,41 +232,3 @@ class Ip6Packet:
 
         return self.raw_packet
 
-    def __pre_parse_sanity_check(self, raw_packet):
-        """ Preliminary sanity check to be run on raw IPv6 packet prior to packet parsing """
-
-        if not config.pre_parse_sanity_check:
-            return True
-
-        if len(raw_packet) < 40:
-            self.logger.critical(f"{self.tracker} - IPv6 sanity check fail - wrong packet length (I)")
-            return False
-
-        if struct.unpack("!H", raw_packet[4:6])[0] != len(raw_packet) - 40:
-            self.logger.critical(f"{self.tracker} - IPv6 sanity check fail - wrong packet length (II)")
-            return False
-
-        return True
-
-    def __post_parse_sanity_check(self):
-        """ Sanity check to be run on parsed IPv6 packet """
-
-        if not config.post_parse_sanity_check:
-            return True
-
-        # ip6_ver not set to 6
-        if not self.ip6_ver == 6:
-            self.logger.critical(f"{self.tracker} - IP sanity check fail - value of ip6_ver is not 6")
-            return False
-
-        # ip6_hop set to 0
-        if self.ip6_hop == 0:
-            self.logger.critical(f"{self.tracker} - IP sanity check fail - value of ip6_hop is 0")
-            return False
-
-        # ip6_src address is multicast
-        if self.ip6_src.is_multicast:
-            self.logger.critical(f"{self.tracker} - IP sanity check fail - ip6_src address is multicast")
-            return False
-
-        return True

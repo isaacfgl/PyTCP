@@ -77,49 +77,26 @@ class EtherPacket:
 
     protocol = "ETHER"
 
-    def __init__(self, raw_packet=None, ether_src="00:00:00:00:00:00", ether_dst="00:00:00:00:00:00", child_packet=None):
+    def __init__(self, ether_src="00:00:00:00:00:00", ether_dst="00:00:00:00:00:00", child_packet=None):
         """ Class constructor """
 
-        self.logger = loguru.logger.bind(object_name="ps_ether.")
-        self.sanity_check_failed = False
+        self.tracker = child_packet.tracker
 
-        # Packet parsing
-        if raw_packet:
-            self.tracker = Tracker("RX")
+        self.ether_dst = ether_dst
+        self.ether_src = ether_src
 
-            if not self.__pre_parse_sanity_check(raw_packet):
-                self.sanity_check_failed = True
-                return
+        assert child_packet.protocol in {"IPv6", "IPv4", "ARP"}, f"Not supported protocol: {child_packet.protocol}"
 
-            raw_header = raw_packet[:ETHER_HEADER_LEN]
+        if child_packet.protocol == "IPv6":
+            self.ether_type = ETHER_TYPE_IP6
 
-            self.raw_data = raw_packet[ETHER_HEADER_LEN:]
-            self.ether_dst = ":".join([f"{_:0>2x}" for _ in raw_header[0:6]])
-            self.ether_src = ":".join([f"{_:0>2x}" for _ in raw_header[6:12]])
-            self.ether_type = struct.unpack("!H", raw_header[12:14])[0]
+        if child_packet.protocol == "IPv4":
+            self.ether_type = ETHER_TYPE_IP4
 
-            if not self.__post_parse_sanity_check():
-                self.sanity_check_failed = True
+        if child_packet.protocol == "ARP":
+            self.ether_type = ETHER_TYPE_ARP
 
-        # Packet building
-        else:
-            self.tracker = child_packet.tracker
-
-            self.ether_dst = ether_dst
-            self.ether_src = ether_src
-
-            assert child_packet.protocol in {"IPv6", "IPv4", "ARP"}, f"Not supported protocol: {child_packet.protocol}"
-
-            if child_packet.protocol == "IPv6":
-                self.ether_type = ETHER_TYPE_IP6
-
-            if child_packet.protocol == "IPv4":
-                self.ether_type = ETHER_TYPE_IP4
-
-            if child_packet.protocol == "ARP":
-                self.ether_type = ETHER_TYPE_ARP
-
-            self.raw_data = child_packet.get_raw_packet()
+        self.raw_data = child_packet.get_raw_packet()
 
     def __str__(self):
         """ Short packet log string """
@@ -148,26 +125,3 @@ class EtherPacket:
 
         return self.raw_packet
 
-    def __pre_parse_sanity_check(self, raw_packet):
-        """ Preliminary sanity check to be run on raw Ethernet packet prior to packet parsing """
-
-        if not config.pre_parse_sanity_check:
-            return True
-
-        if len(raw_packet) < 14:
-            self.logger.critical(f"{self.tracker} - Ethernet sanity check fail - wrong packet length (I)")
-            return False
-
-        return True
-
-    def __post_parse_sanity_check(self):
-        """ Sanity check to be run on parsed Ethernet packet """
-
-        if not config.post_parse_sanity_check:
-            return True
-
-        if self.ether_type < ETHER_TYPE_MIN:
-            self.logger.critical(f"{self.tracker} - Ethernet sanity check fail - value of ether_type < 0x0600")
-            return False
-
-        return True

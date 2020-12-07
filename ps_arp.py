@@ -79,50 +79,20 @@ class ArpPacket:
 
     protocol = "ARP"
 
-    def __init__(self, parent_packet=None, arp_sha=None, arp_spa=None, arp_tpa=None, arp_tha="00:00:00:00:00:00", arp_oper=ARP_OP_REQUEST, echo_tracker=None):
+    def __init__(self, arp_sha=None, arp_spa=None, arp_tpa=None, arp_tha="00:00:00:00:00:00", arp_oper=ARP_OP_REQUEST, echo_tracker=None):
         """ Class constructor """
 
-        self.logger = loguru.logger.bind(object_name="ps_udp.")
-        self.sanity_check_failed = False
+        self.tracker = Tracker("TX", echo_tracker)
 
-        # Packet parsing
-        if parent_packet:
-            self.tracker = parent_packet.tracker
-
-            raw_packet = parent_packet.raw_data
-
-            if not self.__pre_parse_sanity_check(raw_packet):
-                self.sanity_check_failed = True
-                return
-
-            raw_header = raw_packet[:ARP_HEADER_LEN]
-
-            self.arp_hrtype = struct.unpack("!H", raw_header[0:2])[0]
-            self.arp_prtype = struct.unpack("!H", raw_header[2:4])[0]
-            self.arp_hrlen = raw_header[4]
-            self.arp_prlen = raw_header[5]
-            self.arp_oper = struct.unpack("!H", raw_header[6:8])[0]
-            self.arp_sha = ":".join([f"{_:0>2x}" for _ in raw_header[8:14]])
-            self.arp_spa = IPv4Address(raw_header[14:18])
-            self.arp_tha = ":".join([f"{_:0>2x}" for _ in raw_header[18:24]])
-            self.arp_tpa = IPv4Address(raw_header[24:28])
-
-            if not self.__post_parse_sanity_check():
-                self.sanity_check_failed = True
-
-        # Packet building
-        else:
-            self.tracker = Tracker("TX", echo_tracker)
-
-            self.arp_hrtype = 1
-            self.arp_prtype = 0x0800
-            self.arp_hrlen = 6
-            self.arp_prlen = 4
-            self.arp_oper = arp_oper
-            self.arp_sha = arp_sha
-            self.arp_spa = IPv4Address(arp_spa)
-            self.arp_tha = arp_tha
-            self.arp_tpa = IPv4Address(arp_tpa)
+        self.arp_hrtype = 1
+        self.arp_prtype = 0x0800
+        self.arp_hrlen = 6
+        self.arp_prlen = 4
+        self.arp_oper = arp_oper
+        self.arp_sha = arp_sha
+        self.arp_spa = IPv4Address(arp_spa)
+        self.arp_tha = arp_tha
+        self.arp_tpa = IPv4Address(arp_tpa)
 
     def __str__(self):
         """ Short packet log string """
@@ -166,42 +136,3 @@ class ArpPacket:
 
         return self.raw_packet
 
-    def __pre_parse_sanity_check(self, raw_packet):
-        """ Preliminary sanity check to be run on raw ARP packet prior to packet parsing """
-
-        if not config.pre_parse_sanity_check:
-            return True
-
-        if len(raw_packet) < 28:
-            self.logger.critical(f"{self.tracker} - ARP sanity check fail - wrong packet length (I)")
-            return False
-
-        return True
-
-    def __post_parse_sanity_check(self):
-        """ Sanity check to be run on parsed ARP packet """
-
-        if not config.post_parse_sanity_check:
-            return True
-
-        if not self.arp_hrtype == 1:
-            self.logger.critical(f"{self.tracker} - ARP sanity check fail - value of arp_hrtype is not 1")
-            return False
-
-        if not self.arp_prtype == 0x0800:
-            self.logger.critical(f"{self.tracker} - ARP sanity check fail - value of arp_prtype is not 0x0800")
-            return False
-
-        if not self.arp_hrlen == 6:
-            self.logger.critical(f"{self.tracker} - ARP sanity check fail - value of arp_hrlen is not 6")
-            return False
-
-        if not self.arp_prlen == 4:
-            self.logger.critical(f"{self.tracker} - ARP sanity check fail - value of arp_prlen is not 4")
-            return False
-
-        if self.arp_oper not in {1, 2}:
-            self.logger.critical(f"{self.tracker} - ARP sanity check fail - value of oper is not [1-2]")
-            return False
-
-        return True
