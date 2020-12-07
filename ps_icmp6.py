@@ -309,8 +309,8 @@ ICMP6_UNREACHABLE__REJECT_ROUTE = 6
 ICMP6_PACKET_TOO_BIG = 2
 ICMP6_TIME_EXCEEDED = 3
 ICMP6_PARAMETER_PROBLEM = 4
-ICMP6_ECHOREQUEST = 128
-ICMP6_ECHOREPLY = 129
+ICMP6_ECHO_REQUEST = 128
+ICMP6_ECHO_REPLY = 129
 ICMP6_MLD2_QUERY = 130
 ICMP6_ROUTER_SOLICITATION = 133
 ICMP6_ROUTER_ADVERTISEMENT = 134
@@ -381,12 +381,12 @@ class Icmp6Packet:
                 self.icmp6_un_reserved = struct.unpack("!L", raw_packet[4:8])[0]
                 self.icmp6_un_raw_data = raw_packet[8:]
 
-            elif self.icmp6_type == ICMP6_ECHOREQUEST:
+            elif self.icmp6_type == ICMP6_ECHO_REQUEST:
                 self.icmp6_ec_id = struct.unpack("!H", raw_packet[4:6])[0]
                 self.icmp6_ec_seq = struct.unpack("!H", raw_packet[6:8])[0]
                 self.icmp6_ec_raw_data = raw_packet[8:]
 
-            elif self.icmp6_type == ICMP6_ECHOREPLY:
+            elif self.icmp6_type == ICMP6_ECHO_REPLY:
                 self.icmp6_ec_id = struct.unpack("!H", raw_packet[4:6])[0]
                 self.icmp6_ec_seq = struct.unpack("!H", raw_packet[6:8])[0]
                 self.icmp6_ec_raw_data = raw_packet[8:]
@@ -448,12 +448,12 @@ class Icmp6Packet:
                 self.icmp6_un_reserved = 0
                 self.icmp6_un_raw_data = icmp6_un_raw_data[:520]
 
-            elif self.icmp6_type == ICMP6_ECHOREQUEST:
+            elif self.icmp6_type == ICMP6_ECHO_REQUEST:
                 self.icmp6_ec_id = icmp6_ec_id
                 self.icmp6_ec_seq = icmp6_ec_seq
                 self.icmp6_ec_raw_data = icmp6_ec_raw_data
 
-            elif self.icmp6_type == ICMP6_ECHOREPLY:
+            elif self.icmp6_type == ICMP6_ECHO_REPLY:
                 self.icmp6_ec_id = icmp6_ec_id
                 self.icmp6_ec_seq = icmp6_ec_seq
                 self.icmp6_ec_raw_data = icmp6_ec_raw_data
@@ -494,10 +494,10 @@ class Icmp6Packet:
         if self.icmp6_type == ICMP6_UNREACHABLE:
             pass
 
-        elif self.icmp6_type == ICMP6_ECHOREQUEST:
+        elif self.icmp6_type == ICMP6_ECHO_REQUEST:
             log += f", id {self.icmp6_ec_id}, seq {self.icmp6_ec_seq}"
 
-        elif self.icmp6_type == ICMP6_ECHOREPLY:
+        elif self.icmp6_type == ICMP6_ECHO_REPLY:
             log += f", id {self.icmp6_ec_id}, seq {self.icmp6_ec_seq}"
 
         elif self.icmp6_type == ICMP6_ROUTER_SOLICITATION:
@@ -539,12 +539,12 @@ class Icmp6Packet:
         if self.icmp6_type == ICMP6_UNREACHABLE:
             raw_packet = struct.pack("! BBH L", self.icmp6_type, self.icmp6_code, self.icmp6_cksum, self.icmp6_un_reserved) + self.icmp6_un_raw_data
 
-        elif self.icmp6_type == ICMP6_ECHOREQUEST:
+        elif self.icmp6_type == ICMP6_ECHO_REQUEST:
             raw_packet = (
                 struct.pack("! BBH HH", self.icmp6_type, self.icmp6_code, self.icmp6_cksum, self.icmp6_ec_id, self.icmp6_ec_seq) + self.icmp6_ec_raw_data
             )
 
-        elif self.icmp6_type == ICMP6_ECHOREPLY:
+        elif self.icmp6_type == ICMP6_ECHO_REPLY:
             raw_packet = (
                 struct.pack("! BBH HH", self.icmp6_type, self.icmp6_code, self.icmp6_cksum, self.icmp6_ec_id, self.icmp6_ec_seq) + self.icmp6_ec_raw_data
             )
@@ -714,12 +714,12 @@ class Icmp6Packet:
                 self.logger.critical(f"{self.tracker} - ICMPv6 sanity check fail - wrong packet length (II)")
                 return False
 
-        elif raw_packet[0] == ICMP6_ECHOREQUEST:
+        elif raw_packet[0] == ICMP6_ECHO_REQUEST:
             if len(raw_packet) < 8:
                 self.logger.critical(f"{self.tracker} - ICMPv6 sanity check fail - wrong packet length (II)")
                 return False
 
-        elif raw_packet[0] == ICMP6_ECHOREPLY:
+        elif raw_packet[0] == ICMP6_ECHO_REPLY:
             if len(raw_packet) < 8:
                 self.logger.critical(f"{self.tracker} - ICMPv6 sanity check fail - wrong packet length (II)")
                 return False
@@ -805,12 +805,12 @@ class Icmp6Packet:
                 self.logger.critical(f"{self.tracker} - ICMPv6 sanity check fail - imcp6_code MUST be set to [0-2] (RFC 4861)")
                 return False
 
-        elif self.icmp6_type == ICMP6_ECHOREQUEST:
+        elif self.icmp6_type == ICMP6_ECHO_REQUEST:
             # imcp6_code SHOULD be set to 0 (RFC 4861)
             if not self.icmp6_code == 0:
                 self.logger.critical(f"{self.tracker} - ICMPv6 sanity check warning - imcp6_code SHOULD be set to 0 (RFC 4861)")
 
-        elif self.icmp6_type == ICMP6_ECHOREPLY:
+        elif self.icmp6_type == ICMP6_ECHO_REPLY:
             # imcp6_code SHOULD be set to 0 (RFC 4861)
             if not self.icmp6_code == 0:
                 self.logger.critical(f"{self.tracker} - ICMPv6 sanity check warning - imcp6_code SHOULD be set to 0 (RFC 4861)")

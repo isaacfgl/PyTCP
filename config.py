@@ -41,9 +41,6 @@
 #
 
 
-from ipv4_address import IPv4Interface
-from ipv6_address import IPv6Interface
-
 # TAP interface name stack should bind itself to
 interface = b"tap7"
 

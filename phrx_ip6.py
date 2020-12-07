@@ -41,10 +41,7 @@
 #
 
 
-import ps_icmp6
 import ps_ip6
-import ps_tcp
-import ps_udp
 
 
 def phrx_ip6(self, packet_rx):

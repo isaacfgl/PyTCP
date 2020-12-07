@@ -125,8 +125,8 @@ class FastPacketParser:
             # ICMPv6 packet parsing
             if self.ip6.next == fpp_ip6.IP6_NEXT_HEADER_ICMP6:
                 self.icmp6 = fpp_icmp6.Icmp6Packet(self._frame, self.ip6.dptr, self.ip6.pseudo_header, self.ip6.src, self.ip6.dst, self.ip6.hop)
-                if self.icmp6.sanity_check_failed:
-                    self.logger.critical(f"{self.tracker} - {self.icmp6.sanity_check_failed}")
+                if self.icmp6.packet_parse_failed:
+                    self.logger.critical(f"{self.tracker} - {self.icmp6.packet_parse_failed}")
                     return
                 self.logger.debug(f"{self.tracker} - {self.icmp6}")
                 return

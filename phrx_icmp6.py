@@ -118,14 +118,14 @@ def phrx_icmp6(self, packet_rx):
         return
 
     # Respond to ICMPv6 Echo Request packet
-    if packet_rx.icmp6.type == ps_icmp6.ICMP6_ECHOREQUEST:
+    if packet_rx.icmp6.type == ps_icmp6.ICMP6_ECHO_REQUEST:
         self.logger.debug(f"Received ICMPv6 Echo Request packet from {packet_rx.ip6.src}, sending reply")
 
         self.phtx_icmp6(
             ip6_src=packet_rx.ip6.dst,
             ip6_dst=packet_rx.ip6.src,
             ip6_hop=255,
-            icmp6_type=ps_icmp6.ICMP6_ECHOREPLY,
+            icmp6_type=ps_icmp6.ICMP6_ECHO_REPLY,
             icmp6_ec_id=packet_rx.icmp6.ec_id,
             icmp6_ec_seq=packet_rx.icmp6.ec_seq,
             icmp6_ec_raw_data=packet_rx.icmp6.ec_data,
