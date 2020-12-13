@@ -599,7 +599,7 @@ class Icmp6Packet:
                     _nd_opt_slla = option.slla
                     break
             else:
-                _nd_op_slla = None
+                _nd_opt_slla = None
         return _nd_opt_slla
 
     @property
@@ -613,7 +613,7 @@ class Icmp6Packet:
                     _nd_opt_tlla = option.tlla
                     break
             else:
-                _nd_op_tlla = None
+                _nd_opt_tlla = None
         return _nd_opt_tlla
 
     @property
